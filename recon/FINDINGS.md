@@ -34,21 +34,15 @@ Consequences:
   be searchable and virtualised, not a plain `<select>`.
 - The `.max(200)` cap in `06-API-CONTRACT.md` is confirmed as necessary.
 
-### OPEN — query string length
+### RESOLVED — query string length
 
-The list endpoint takes properties as a comma-separated **query parameter**. 200 property
-names at ~25 chars each is a >5,000 character URL. Untested. Verify before T9:
+200 real property names produce a **5,116 character** query string. The GET list endpoint
+returned **HTTP 200**. T9 can use the list endpoint; no need for `POST /search`.
 
-```bash
-export $(grep -v '^#' .env | xargs)
-P=$(node -e 'console.log(Array.from({length:200},(_,i)=>"hs_test_property_name_"+i).join(","))')
-curl -s -o /dev/null -w "%{http_code}\n" \
-  "https://api.hubapi.com/crm/objects/2026-03/contacts?limit=1&properties=$P" \
-  -H "Authorization: Bearer $HUBSPOT_PRIVATE_APP_TOKEN"
-```
-
-If this returns 414 or 400, T9 must use `POST /search` (properties in the body) instead of
-the GET list endpoint whenever the column count is high.
+Caveat: measured on a portal with **zero custom properties**. A customer with verbose
+custom property names will exceed this. Build the fallback: if the assembled query string
+exceeds ~7,000 characters, switch to `POST /search` with properties in the body. Ten lines,
+and it prevents an incident at the one customer who has 200 long-named properties.
 
 ## 3. Values arrive as strings
 
@@ -122,12 +116,13 @@ detection.**
 70 properties are `datetime/date` — stored as a datetime, displayed as a date picker.
 Keying on `fieldType` would treat them as dates and silently drop the time. Key on `type`.
 
-### DECISION 1 — `string/html`
+### DECISION 1 — `string/html` — RESOLVED: strip tags
 
-An HTML property lands in a cell as raw markup: `<p>Hello <b>world</b></p>`. Options:
-strip tags to plain text (readable, lossy), or keep raw (faithful, ugly). **Recommendation:
-strip tags, and note it in the UI.** A marketing ops person pasting into Excel wants the
-text. Revisit only if a customer asks.
+Only one property on this portal: `hs_chat_assistant_summary` (Chat Assistant: Summary),
+a system `hs_` property hidden behind the toggle by default. Low stakes.
+
+Strip tags to plain text. Keep the behaviour because a customer can create their own rich
+text properties, but it is not a T8 priority.
 
 ### DECISION 2 — `enumeration/booleancheckbox`
 
@@ -136,11 +131,35 @@ enumeration handling yields the string `"True"`. Boolean handling yields `TRUE`.
 **Recommendation: coerce to a real Excel boolean.** A column that filters and sorts as a
 boolean is more useful than one that sorts alphabetically as text.
 
-### DECISION 3 — `object_coordinates/text`
+### DECISION 3 — `object_coordinates/text` — RESOLVED: text fallback, no special case
 
-Not in the original spec's table. The fallback-to-text rule already covers it and must
-never throw. Inspect the two properties in `sample-records.json` before deciding whether
-it deserves special handling.
+The two properties are `hs_notes_last_activity` (Last Activity) and
+`hs_notes_next_activity` (Next Activity). Both are system `hs_` properties, and both are
+internal pointers to engagement objects with no user-readable value.
+
+The existing rule — unknown type → text, never throw — is sufficient.
+
+## 8. `referencedObjectType` — the third trap
+
+```
+COMPANY  (1): associatedcompanyid          [number/number]
+SEQUENCE (1): hs_latest_sequence_enrolled  [number/number]
+OWNER    (1): hubspot_owner_id             [enumeration/select]
+```
+
+**A property that references another object is an identifier, and its declared `type` lies
+about that.** Check `referencedObjectType` before the type/fieldType table — see
+`05-EXPORT-ENGINE.md` §4.0.
+
+- `hubspot_owner_id` is `enumeration/select` with an **empty** `options` array, because
+  owners are dynamic. Enumeration handling emits the raw id `96879917`.
+- `associatedcompanyid` is `number/number`. Numeric handling renders `442,222,359,747` —
+  an identifier with thousands separators. And Excel keeps 15 significant digits: an id
+  longer than that is silently rounded into a *different* id.
+
+Identifiers are always text. Only OWNER is resolved, via the owners cache.
+
+Note: `hubspot_owner_id` matches owner **`id`** (a string), not `userId` (a number).
 
 ---
 
@@ -151,4 +170,4 @@ it deserves special handling.
 | 4 | Multi-line fields return `\n` | **Seed the fixture contact.** The product depends on this. |
 | 5 | Batch associations shape | No deals in the portal. Create one linked to a company. |
 | 7 | Real rate limit | Service-key quota ≠ marketplace OAuth quota (110/10s). Re-measure under OAuth before T5. |
-| — | Query string length at 200 properties | Command in §2 above. |
+| — | Whether these traps also apply to companies / deals / tickets | Re-run the probe per object type. Do not assume the contacts inventory transfers. |

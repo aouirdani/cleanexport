@@ -58,6 +58,44 @@ Rule 5: Excel's hard cell limit is 32,767 characters. Exceeding it corrupts the 
 
 ## 4. Type mapping
 
+### 4.0 Dispatch order — identifiers first
+
+Check `referencedObjectType` **before** consulting the type/fieldType table. A property
+that references another object is an identifier, and its declared `type` is misleading.
+
+```
+if (def.referencedObjectType) {
+  if (def.referencedObjectType === 'OWNER') -> resolve via owners cache
+  else                                      -> TEXT, unresolved
+} else {
+  -> type/fieldType table below
+}
+```
+
+Observed on contacts (`recon/FINDINGS.md` §8):
+
+| Property | Declared | References | Correct handling |
+|---|---|---|---|
+| `hubspot_owner_id` | `enumeration/select` | OWNER | Resolve to `"Firstname Lastname"` |
+| `associatedcompanyid` | `number/number` | COMPANY | **Text.** Not a number |
+| `hs_latest_sequence_enrolled` | `number/number` | SEQUENCE | **Text.** Not a number |
+
+Two failure modes this prevents, neither of which any spec-derived unit test would catch:
+
+1. `hubspot_owner_id` is declared `enumeration/select`, but its `options` array is empty —
+   owners are dynamic. Naive enumeration handling emits the raw id `96879917` into the
+   "Owner" column. The customer receives a spreadsheet of meaningless numbers.
+2. `associatedcompanyid` is declared `number/number`. Numeric handling applies
+   `numFmt '#,##0.###'` and renders `442,222,359,747`. An identifier with thousands
+   separators is nonsense — **and Excel stores numbers as IEEE-754 doubles, keeping only
+   15 significant digits.** An id longer than that is silently rounded and becomes a
+   different id. Identifiers are always text.
+
+`associatedcompanyid` returns only an id. To give the customer the company *name*, they use
+the associations feature (§7), which is exactly what it exists for. Say so in the UI when
+they select a referencing property, rather than letting them export a column of numbers.
+
+
 **`type` decides the value semantics. `fieldType` only decides `wrapText` and multi-select
 detection.** Keying on `fieldType` is the trap: 70 contact properties are `datetime/date`
 — stored as a datetime, shown as a date picker. Treating them as dates silently drops the
@@ -84,7 +122,7 @@ object types before assuming it transfers.
 | `datetime` | `date` or `calculation_*` | parse → `Date`, `numFmt 'yyyy-mm-dd hh:mm'`, converted to the export timezone |
 | `date` | `date` | parse → `Date`, `numFmt 'yyyy-mm-dd'` |
 | `bool` | `booleancheckbox`, `calculation_*` | `"true"`/`"false"` → real boolean |
-| `enumeration` | `select`, `radio`, `calculation_rollup` | internal value → label from `options` |
+| `enumeration` | `select`, `radio`, `calculation_rollup` | internal value → label from `options`. If `options` is empty and `referencedObjectType` is set, §4.0 already handled it |
 | `enumeration` | `checkbox` | multi-select, `;`-separated → each mapped to label, joined `", "` |
 | `enumeration` | `booleancheckbox` | → real boolean (see FINDINGS decision 2) |
 | `object_coordinates` | `text` | Text fallback |
