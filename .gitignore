@@ -1,0 +1,10 @@
+
+
+# HubSpot config file
+hubspot.config.yml
+hubspot.config.yml
+.env
+tokens.json
+sample-records.json
+node_modules/
+.DS_Store
