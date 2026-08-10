@@ -172,20 +172,37 @@ Silent truncation is the one failure mode that destroys trust permanently.
 {
   "toObjectType": "COMPANIES",
   "columns": ["name", "domain"],
-  "cardinality": "FIRST"
+  "cardinality": "PRIMARY"
 }
 ```
 
-- `cardinality: "FIRST"` — one column per requested property, from the first associated
-  record. This is the MVP behaviour.
-- `cardinality: "JOIN"` — values from all associated records joined with `"; "` in one cell.
-  Ship only if a customer asks.
+- `cardinality: "PRIMARY"` — MVP behaviour. One column per requested property, taken from
+  the **primary** associated record. See `recon/FINDINGS.md` §12: primary is identified by
+  an entry in `associationTypes` labelled `Primary` (`typeId: 5` for deal→company), **not**
+  by array position. Fall back to `to[0]` only when nothing is labelled.
+- `cardinality: "JOIN"` — values from all associated records joined with `"; "` in one
+  cell. Ship only if a customer asks.
 
 Association columns are appended after the primary object's columns, with headers prefixed
 by the object name: `Company · Name`, `Company · Domain`.
 
-Resolve associations with the **batch** endpoint, 100 IDs per call, never one call per row.
+### Resolution is two calls, not one
+
+1. `POST /crm/v4/associations/{from}/{to}/batch/read` — returns **ids only**, 100 inputs
+   per call. Accept HTTP **200 and 207**; 207 is multi-status, not failure. Records with no
+   association are absent from `results` and listed in `errors` — never zip the arrays by
+   index. Build a `Map` keyed by `String(from.id)`; a missing id means an empty cell.
+2. `POST /crm/objects/{version}/{toObjectType}/batch/read` — fetch the requested properties
+   for the selected ids.
+
+Note the version mismatch: associations are on `/crm/v4/`, objects on date-based
+versioning. Two schemes coexist; do not unify them.
+
+**`String()` every id on both sides.** `from.id` arrives as a string, `toObjectId` as a
+number. A `Map` keyed by one and read with the other silently yields empty columns.
+
 One call per row on a 50k export is 50,000 calls and a guaranteed rate-limit incident.
+Batch, always.
 
 ## 8. Failure handling
 

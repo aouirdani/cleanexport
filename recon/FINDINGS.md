@@ -3,7 +3,7 @@
 Portal 149063119 (EU, `app-eu1`), service key auth, probed 9 August 2026.
 **This file outranks every spec.** If a spec contradicts it, the spec is wrong.
 
-Status: checks 1, 2, 3, 4, 6 complete. Checks 5 and 7 pending.
+Status: checks 1-6 complete. Only check 7 (OAuth rate limit) remains — it needs the project app.
 
 ---
 
@@ -229,6 +229,62 @@ attributable. Parse `errors`, do not merely log it.
 
 Note the endpoint is `/crm/v4/associations/...` — associations still use v4, not the
 date-based versioning used by `/crm/objects/`. Two version schemes coexist.
+
+## 12. Association success shape — two traps
+
+```json
+{
+  "from": { "id": "515690208449" },
+  "to": [
+    { "toObjectId": 442222359747,
+      "associationTypes": [
+        { "category": "HUBSPOT_DEFINED", "typeId": 341, "label": null },
+        { "category": "HUBSPOT_DEFINED", "typeId": 5, "label": "Primary" } ] },
+    { "toObjectId": 442488735948,
+      "associationTypes": [
+        { "category": "HUBSPOT_DEFINED", "typeId": 341, "label": null } ] }
+  ]
+}
+```
+
+### Trap A — `from.id` is a string, `toObjectId` is a number
+
+Same response, two types. `"515690208449"` quoted, `442222359747` not.
+
+A `Map` keyed by one and looked up with the other never matches, and the failure is silent:
+every association column comes out empty, no error, no exception. **Normalise with
+`String()` on both sides of every key operation.**
+
+Related hazard: `JSON.parse` turns `toObjectId` into a JS `Number`. Current HubSpot ids are
+12 digits; `Number.MAX_SAFE_INTEGER` is 16. There is headroom, but the moment an id crosses
+it the value is silently corrupted. Convert to string immediately on receipt and never do
+arithmetic on an id.
+
+### Trap B — "first" is not "primary"
+
+`associationTypes` carries the answer: **`typeId: 5, label: "Primary"`** marks the primary
+company. The second company has only the unlabelled `typeId: 341`.
+
+Taking `to[0]` is guessing. Array order is not documented as stable, and the primary
+association is the one the customer means when they write "Company" in a spreadsheet
+header. In this payload `to[0]` happens to be primary — which is exactly how this bug
+survives testing.
+
+**`cardinality: "FIRST"` in the original spec is wrong. It becomes `"PRIMARY"`:** select the
+entry whose `associationTypes` contains a type labelled `Primary`; if none is labelled,
+fall back to `to[0]`.
+
+Confirmed real: this portal already has 1 deal with 2 companies, from two clicks in the UI.
+Multi-association is the normal case, not an edge case.
+
+### And a third thing: associations return ids only
+
+There are **no company names in this response.** Resolving `Company · Name` takes a second
+call — `POST /crm/objects/2026-03/companies/batch/read` with the ids and the requested
+properties.
+
+T10 is therefore two batched calls per page, not one. Budget for it in the rate limiter:
+an export with associations costs roughly double the API calls of one without.
 
 ---
 
