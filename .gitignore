@@ -1,10 +1,32 @@
-
-
-# HubSpot config file
-hubspot.config.yml
-hubspot.config.yml
-.env
-tokens.json
-sample-records.json
+# dependencies
 node_modules/
+.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# misc
 .DS_Store
+*.pem
+*.tsbuildinfo
+.vercel
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env
+.env
+.env*.local
+
+# secrets — project specific
+hubspot.config.yml
+recon/.env
+recon/tokens.json
+recon/sample-records.json

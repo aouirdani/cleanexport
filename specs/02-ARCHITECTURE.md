@@ -16,7 +16,7 @@ were trained on. Novelty costs you correctness here.
 
 | Layer | Choice | Why |
 |---|---|---|
-| Framework | **Next.js 15, App Router, TypeScript** | One repo for UI and API. Largest training corpus of any full-stack framework. |
+| Framework | **Next.js 16, App Router, TypeScript** | One repo for UI and API. Largest training corpus of any full-stack framework. Turbopack is the default bundler in 16. |
 | UI | **Tailwind CSS + shadcn/ui** | Copy-paste components; agents generate them reliably. |
 | DB | **PostgreSQL (Supabase or Neon)** | Free tier, standard SQL, connection pooling. |
 | ORM | **Prisma** | Chosen over Drizzle deliberately: more training data, clearer errors, schema file doubles as documentation for the agent. |
@@ -80,6 +80,39 @@ step 7: mark run complete
   discipline in each handler.
 - No customer CRM data is persisted beyond the generated file. Do not build a data
   warehouse. Row-level CRM data lives in the XLSX and nowhere else.
+
+## 5b. Node version, and why it matters here
+
+Next.js 16 requires Node **>= 20.9**. Your Node 25 satisfies that, but 25 is an
+odd-numbered release: it is not LTS, and native modules — Prisma's query engine in
+particular — routinely lag behind it. Fighting the toolchain is not what this project is
+for.
+
+```bash
+nvm install 22 && nvm use 22
+echo "22" > .nvmrc
+```
+
+Node 22 LTS. Pin it in `.nvmrc` so the version is part of the repo rather than part of
+your memory.
+
+## 5c. Next.js 16 ships its own agent instructions — use them
+
+From 16.2, the Next.js docs are bundled inside `node_modules/next/dist/docs/`, and
+`next dev` writes a block into `AGENTS.md` at the project root. Its opening line is
+essentially: this is not the Next.js in your training data, read the bundled guide before
+writing any code.
+
+This is written for exactly your situation. A local 27B model's Next.js knowledge is
+Next.js 14/15 era at best, and it will confidently produce App Router patterns that were
+removed. Two consequences:
+
+1. **Do not delete or overwrite the `nextjs-agent-rules` block** in the generated
+   `AGENTS.md`. `next dev` re-adds it anyway.
+2. When a task touches routing, caching, or server components, pass the relevant file from
+   `node_modules/next/dist/docs/` to the agent with `--read`. It is version-exact
+   documentation sitting on your disk — better ground truth than anything the model
+   remembers, and the same principle as `recon/FINDINGS.md`.
 
 ## 6. Using Ollama and local models for the build
 
