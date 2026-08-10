@@ -193,6 +193,43 @@ Doing so adds three columns the user never selected and destroys the configured 
 order. Iterate `ExportDefinition.properties` — the user's ordered array — and look each
 name up in the payload. This is the concrete reason behind invariant 2.
 
+## 11. Batch associations return **207**, not 200
+
+```
+POST /crm/v4/associations/deals/companies/batch/read  →  HTTP 207
+{
+  "status": "COMPLETE",
+  "results": [],
+  "errors": [{
+    "status": "error",
+    "category": "OBJECT_NOT_FOUND",
+    "subCategory": "crm.associations.NO_ASSOCIATIONS_FOUND",
+    "message": "No company is associated with deal 515690208449.",
+    "context": { "fromObjectId": ["515690208449"], "fromObjectType": ["deal"],
+                 "toObjectType": ["company"] }
+  }],
+  "numErrors": 1
+}
+```
+
+**207 Multi-Status is a success.** Some inputs resolved, some did not. A client that treats
+anything other than 200 as a failure will break every export containing a single record
+without an association — which is most real exports.
+
+Three requirements for T10:
+
+1. Accept **200 and 207**. Only other statuses are failures.
+2. **`results` does not align with `inputs`.** Records with no association are omitted from
+   `results` entirely and listed in `errors`. Never zip the two arrays by index.
+3. Build a `Map` keyed by `fromObjectId`; any input id absent from that map is `null`, and
+   `null` means an empty cell, not a failed run.
+
+The error entry carries `fromObjectId` in `context`, so a partial failure is fully
+attributable. Parse `errors`, do not merely log it.
+
+Note the endpoint is `/crm/v4/associations/...` — associations still use v4, not the
+date-based versioning used by `/crm/objects/`. Two version schemes coexist.
+
 ---
 
 ## Still to verify

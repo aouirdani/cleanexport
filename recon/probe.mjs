@@ -225,19 +225,45 @@ async function checkAssociations() {
   });
 
   line(`  POST /crm/v4/associations/deals/companies/batch/read → HTTP ${r.status}`);
-  if (r.status !== 200) {
+
+  // 207 Multi-Status is a SUCCESS for batch endpoints: some inputs resolved, some did not.
+  // Treating anything but 200 as failure would break every export containing an
+  // unassociated record.
+  if (r.status !== 200 && r.status !== 207) {
     line(`  body: ${r.text.slice(0, 400)}`);
-    line('  → find the current associations endpoint before writing T10.');
+    line('  → unexpected status. Check the endpoint before writing T10.');
     return;
   }
 
   const body = JSON.parse(r.text);
-  line('\n  Response shape:');
-  line(JSON.stringify(body, null, 2).slice(0, 1200).split('\n').map((l) => '    ' + l).join('\n'));
+  const results = body.results || [];
+  const errors = body.errors || [];
 
-  const withMultiple = (body.results || []).filter((x) => (x.to || []).length > 1);
-  line(`\n  deals with MORE THAN ONE associated company: ${withMultiple.length}`);
-  line('  → this is the case cardinality:"FIRST" resolves. Confirm your choice is right.');
+  line(`  status field: ${body.status}   results: ${results.length}   errors: ${errors.length}`);
+
+  if (r.status === 207) {
+    line('\n  ⚠  207 = MULTI-STATUS, not an error.');
+    line('     Records with no association are OMITTED from results[] and listed in');
+    line('     errors[] with category OBJECT_NOT_FOUND / NO_ASSOCIATIONS_FOUND.');
+    line('     T10 MUST accept 200 and 207, key a Map by fromObjectId, and treat any id');
+    line('     absent from results[] as null. Never assume results aligns with inputs.');
+  }
+
+  if (results.length) {
+    line('\n  Success shape:');
+    line(JSON.stringify(results[0], null, 2).split('\n').map((l) => '    ' + l).join('\n'));
+    const withMultiple = results.filter((x) => (x.to || []).length > 1);
+    line(`\n  deals with MORE THAN ONE associated company: ${withMultiple.length}`);
+    line('  → this is the case cardinality:"FIRST" resolves. Confirm your choice is right.');
+  } else {
+    line('\n  No successful association yet. Open the deal in HubSpot, right panel →');
+    line('  Companies → Add, then re-run to capture the success shape for T10.');
+  }
+
+  if (errors.length) {
+    line('\n  Error entry shape (T10 must parse this, not just log it):');
+    line(JSON.stringify(errors[0], null, 2).split('\n').map((l) => '    ' + l).join('\n'));
+  }
 }
 
 /* ── 6. Owners ──────────────────────────────────────────────────────────── */
