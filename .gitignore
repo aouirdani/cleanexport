@@ -30,3 +30,5 @@ hubspot.config.yml
 recon/.env
 recon/tokens.json
 recon/sample-records.json
+
+/app/generated/prisma
