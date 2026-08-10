@@ -3,7 +3,7 @@
 Portal 149063119 (EU, `app-eu1`), service key auth, probed 9 August 2026.
 **This file outranks every spec.** If a spec contradicts it, the spec is wrong.
 
-Status: checks 1, 2, 3, 6 complete. Checks 4, 5, 7 pending fixtures.
+Status: checks 1, 2, 3, 4, 6 complete. Checks 5 and 7 pending.
 
 ---
 
@@ -160,6 +160,38 @@ about that.** Check `referencedObjectType` before the type/fieldType table — s
 Identifiers are always text. Only OWNER is resolved, via the owners cache.
 
 Note: `hubspot_owner_id` matches owner **`id`** (a string), not `userId` (a number).
+
+## 9. Multi-line values — CONFIRMED
+
+The observation the entire product rests on. Property `message` (`string/textarea`),
+three lines typed into the HubSpot UI:
+
+```
+escaped: "Première ligne\nDeuxième ligne\nTroisième ligne"
+census:  CRLF=0   bare LF=2   bare CR=0
+```
+
+**HubSpot returns bare `\n` inside a property value.** In CSV that character terminates a
+record — which is why one contact becomes three rows in HubSpot's own export. In an XLSX
+cell it is legal. Preserve it, set `wrapText`, and the record stays one row.
+
+`sanitizeCell` rule 3 still normalises `\r\n` and lone `\r`: not observed here, but the
+values originate from browsers, pasted content and imports, so all three will appear in
+customer data.
+
+Other textarea/html properties on contacts, all system `hs_`:
+`hs_chat_assistant_summary`, `hs_content_membership_notes`, `hs_cross_account_note`,
+`hs_quarantined_emails`.
+
+## 10. Three properties are always returned, requested or not
+
+Requesting only the textarea/html properties still returned `createdate`, `hs_object_id`
+and `lastmodifieddate` on every record.
+
+**Consequence for `writer.ts`: never build columns by iterating `Object.keys(record.properties)`.**
+Doing so adds three columns the user never selected and destroys the configured column
+order. Iterate `ExportDefinition.properties` — the user's ordered array — and look each
+name up in the payload. This is the concrete reason behind invariant 2.
 
 ---
 

@@ -29,9 +29,15 @@ const rule = (t) => { line(); line(`━━━ ${t} ${'━'.repeat(Math.max(0, 58
 await main();
 
 async function main() {
-  line(`\nPortal ${tokens.portalId}  ·  ${tokens.hubDomain || ''}`);
+  line(`\nPortal ${tokens.portalId}  ·  ${tokens.hubDomain || ''}  ·  mode: ${tokens.mode}`);
 
   if (process.argv.includes('--ratelimit')) {
+    if (tokens.mode === 'private') {
+      line('\n  ⚠  You are on a PRIVATE APP token. Private apps have different quotas');
+      line('     than marketplace-distributed OAuth apps (110 req / 10s per installing');
+      line('     account). Whatever number you measure here is NOT the number your');
+      line('     product will live with. Re-run this check with OAuth before writing T5.\n');
+    }
     await checkRateLimit();
     return;
   }
@@ -124,10 +130,12 @@ async function checkRecords(paths) {
   rule('3. RAW RECORD SHAPE');
 
   const { results: propDefs } = await get(paths.properties('contacts'));
-  const wanted = (propDefs || [])
-    .filter((p) => !p.name.startsWith('hs_'))
-    .slice(0, 25)
-    .map((p) => p.name);
+  // Deliberately include textarea/html first: alphabetical sampling stops around
+  // "firstname" and never reaches "message", which hides the multi-line evidence.
+  const all = propDefs || [];
+  const multiline = all.filter((p) => p.fieldType === 'textarea' || p.fieldType === 'html');
+  const rest = all.filter((p) => !p.name.startsWith('hs_') && !multiline.includes(p));
+  const wanted = [...multiline, ...rest.slice(0, 25)].map((p) => p.name);
 
   const qs = new URLSearchParams({ limit: '100', properties: wanted.join(',') });
   const page = await get(`${paths.objects('contacts')}?${qs}`);
@@ -288,15 +296,34 @@ async function checkRateLimit() {
 /* ── plumbing ───────────────────────────────────────────────────────────── */
 
 function load() {
+  // Mode A — private app token. Fastest path to real payloads: no OAuth dance.
+  // Create a private app inside the TEST portal, copy its token into .env.
+  const pat = process.env.HUBSPOT_PRIVATE_APP_TOKEN;
+  if (pat) {
+    return {
+      mode: 'private',
+      access_token: pat,
+      expires_at: Number.MAX_SAFE_INTEGER, // private app tokens do not expire
+      portalId: '(private app)',
+      hubDomain: '',
+    };
+  }
+
+  // Mode B — OAuth tokens produced by auth.mjs.
   try {
-    return JSON.parse(readFileSync(TOKENS, 'utf8'));
+    return { mode: 'oauth', ...JSON.parse(readFileSync(TOKENS, 'utf8')) };
   } catch {
-    console.error('No tokens.json. Run:  node --env-file=.env auth.mjs');
+    console.error(
+      'No credentials found. Either:\n' +
+      '  A) put HUBSPOT_PRIVATE_APP_TOKEN=pat-... in .env   (fast, payload recon only)\n' +
+      '  B) run: node --env-file=.env auth.mjs              (full OAuth flow)',
+    );
     process.exit(1);
   }
 }
 
 async function refreshIfNeeded() {
+  if (tokens.mode === 'private') return;
   if (Date.now() < tokens.expires_at - 60_000) return;
   const r = await fetch(`${BASE}/oauth/v1/token`, {
     method: 'POST',
