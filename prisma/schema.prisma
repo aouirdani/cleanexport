@@ -1,13 +1,157 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  output   = "../lib/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model Portal {
+  id                String   @id @default(cuid())
+  hubspotPortalId   BigInt   @unique
+  name              String?
+  hubDomain         String?
+  accessTokenEnc    String   @db.Text
+  refreshTokenEnc   String   @db.Text
+  tokenExpiresAt    DateTime
+  scopes            String[]
+  timezone          String   @default("Europe/Paris")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  disconnectedAt    DateTime?
+
+  users             User[]
+  exports           ExportDefinition[]
+  runs              ExportRun[]
+  subscription      Subscription?
+  properties        PropertyCache[]
+
+  @@index([tokenExpiresAt])
+}
+
+model User {
+  id              String   @id @default(cuid())
+  portalId        String
+  hubspotUserId   BigInt
+  email           String
+  firstName       String?
+  lastName        String?
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  portal          Portal   @relation(fields: [portalId], references: [id], onDelete: Cascade)
+
+  @@unique([portalId, hubspotUserId])
+  @@index([email])
+}
+
+model ExportDefinition {
+  id            String   @id @default(cuid())
+  portalId      String
+  name          String
+  objectType    ObjectType
+  properties    String[]
+  filters       Json?
+  associations  Json?
+  headerStyle   HeaderStyle @default(LABEL)
+  scheduleCron  String?
+  scheduleTz    String      @default("Europe/Paris")
+  recipients    String[]
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  lastRunAt     DateTime?
+  nextRunAt     DateTime?
+
+  portal        Portal      @relation(fields: [portalId], references: [id], onDelete: Cascade)
+  runs          ExportRun[]
+
+  @@index([portalId])
+  @@index([nextRunAt, isActive])
+}
+
+model ExportRun {
+  id            String    @id @default(cuid())
+  portalId      String
+  exportId      String
+  status        RunStatus @default(QUEUED)
+  trigger       Trigger
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  rowCount      Int?
+  fileKey       String?
+  fileSizeBytes Int?
+  apiCallCount  Int?
+  errorCode     String?
+  errorMessage  String?   @db.Text
+  createdAt     DateTime  @default(now())
+
+  portal        Portal            @relation(fields: [portalId], references: [id], onDelete: Cascade)
+  export        ExportDefinition  @relation(fields: [exportId], references: [id], onDelete: Cascade)
+
+  @@index([portalId, createdAt])
+  @@index([exportId, createdAt])
+  @@index([status])
+}
+
+model Subscription {
+  id                    String   @id @default(cuid())
+  portalId              String   @unique
+  stripeCustomerId      String   @unique
+  stripeSubscriptionId  String?  @unique
+  status                SubStatus @default(TRIALING)
+  plan                  String   @default("solo")
+  trialEndsAt           DateTime?
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  portal                Portal   @relation(fields: [portalId], references: [id], onDelete: Cascade)
+}
+
+model PropertyCache {
+  id            String     @id @default(cuid())
+  portalId      String
+  objectType    ObjectType
+  payload       Json
+  fetchedAt     DateTime   @default(now())
+
+  portal        Portal     @relation(fields: [portalId], references: [id], onDelete: Cascade)
+
+  @@unique([portalId, objectType])
+}
+
+enum ObjectType {
+  CONTACTS
+  COMPANIES
+  DEALS
+  TICKETS
+}
+
+enum HeaderStyle {
+  LABEL
+  INTERNAL
+  BOTH
+}
+
+enum RunStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum Trigger {
+  MANUAL
+  SCHEDULE
+}
+
+enum SubStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
 }

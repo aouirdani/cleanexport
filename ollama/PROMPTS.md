@@ -43,37 +43,55 @@ Three habits that matter more than the wording:
 
 ```
 aider --model ollama_chat/cleanexport-dev \
-      --read CONVENTIONS.md --read specs/03-DATA-MODEL.md \
+      --read CONVENTIONS.md \
+      --read specs/03-DATA-MODEL.md \
+      --read .agents/skills/prisma-upgrade-v7/references/schema-changes.md \
       prisma/schema.prisma
 ```
 
+That third `--read` is the point. The project runs **Prisma 7**, whose syntax post-dates
+the model's training data — it will confidently write `provider = "prisma-client-js"` and
+put `url` in the datasource block, both of which are wrong now. The reference file is
+version-exact ground truth sitting on your disk. Same principle as `recon/FINDINGS.md`.
+
 ```
 ROLE
-You are transcribing a database schema into a Prisma schema file.
+You are transcribing a database schema into a Prisma 7 schema file.
 
 CONTEXT
-specs/03-DATA-MODEL.md contains the complete Prisma schema. It is authoritative.
+specs/03-DATA-MODEL.md contains the complete schema and is authoritative.
+This project uses Prisma 7. Its syntax differs from Prisma 6 and from your training data.
+.agents/skills/prisma-upgrade-v7/references/schema-changes.md documents the differences.
 
 TASK
-Copy the Prisma schema from specs/03-DATA-MODEL.md into prisma/schema.prisma, exactly.
-
-INPUT
-The schema block in specs/03-DATA-MODEL.md, section "Prisma schema".
+Write prisma/schema.prisma from the schema block in specs/03-DATA-MODEL.md, exactly.
 
 ACCEPTANCE
-1. Six models: Portal, User, ExportDefinition, ExportRun, Subscription, PropertyCache.
-2. Five enums: ObjectType, HeaderStyle, RunStatus, Trigger, SubStatus.
-3. hubspotPortalId is BigInt, not Int.
-4. Every @@index and @@unique from the spec is present.
-5. `npx prisma validate` passes.
+1. generator block uses provider = "prisma-client" and includes the required output field.
+2. datasource block declares provider only. NO url, directUrl or shadowDatabaseUrl —
+   those live in prisma.config.ts in v7.
+3. No engineType field anywhere. It was removed in v7.
+4. Six models: Portal, User, ExportDefinition, ExportRun, Subscription, PropertyCache.
+5. Five enums: ObjectType, HeaderStyle, RunStatus, Trigger, SubStatus.
+6. hubspotPortalId is BigInt, not Int.
+7. Every @@index and @@unique from the spec is present.
+8. `pnpm exec prisma validate` passes.
 
 FORBIDDEN
 Do not add models. Do not add fields. Do not rename anything. Do not "improve" the schema.
+Do not write provider = "prisma-client-js" — it is deprecated and wrong for this project.
 This is transcription, not design. If something looks wrong, list it under UNSURE and
 transcribe it anyway.
 ```
 
----
+Verify yourself, before moving on:
+
+```bash
+pnpm exec prisma validate && pnpm exec prisma generate
+```
+
+Generation is the real test. `validate` passes on a schema whose generator block is subtly
+wrong; `generate` does not.
 
 ## T7 — Cell sanitiser (the one that matters)
 

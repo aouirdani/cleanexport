@@ -15,14 +15,19 @@ Portal (1) ──< PropertyCache (n)
 
 ## Prisma schema
 
+> **Prisma 7 syntax.** Verified August 2026. `prisma-client-js` is deprecated, `output` is
+> mandatory, and connection URLs have moved out of the schema into `prisma.config.ts`.
+> Reference on disk: `.agents/skills/prisma-upgrade-v7/references/schema-changes.md`.
+
 ```prisma
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"   // required in v7
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // url / directUrl / shadowDatabaseUrl now live in prisma.config.ts
 }
 
 model Portal {
@@ -191,6 +196,69 @@ enum SubStatus {
   PAST_DUE
   CANCELED
 }
+```
+
+## Prisma 7 wiring
+
+### `prisma.config.ts` (project root, next to package.json)
+
+```ts
+import 'dotenv/config';
+import { defineConfig } from 'prisma/config';
+
+export default defineConfig({
+  schema: './prisma/schema.prisma',
+  datasource: {
+    url: process.env.DATABASE_URL!,
+    directUrl: process.env.DIRECT_URL,
+  },
+});
+```
+
+### `lib/db.ts` — the client singleton
+
+In v7 `new PrismaClient()` with no argument throws: it requires a driver adapter or an
+Accelerate URL. With plain Postgres:
+
+```bash
+pnpm add @prisma/adapter-pg pg
+pnpm add -D @types/pg
+```
+
+```ts
+import { PrismaClient } from './generated/prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+```
+
+The singleton guard matters in Next.js dev: hot reload otherwise opens a new pool on every
+save until Postgres refuses connections.
+
+### Import path
+
+`import { PrismaClient } from '@prisma/client'` is **wrong in v7**. Import from the
+generated output path. Every file in the project imports `prisma` from `@/lib/db`, never
+the generated path directly — one place to change if `output` moves.
+
+### Housekeeping
+
+Add to `.gitignore`:
+
+```
+lib/generated/
+```
+
+And to `package.json` so the client exists after a fresh install and on Vercel:
+
+```json
+"scripts": { "postinstall": "prisma generate" }
 ```
 
 ## Notes for the implementer
