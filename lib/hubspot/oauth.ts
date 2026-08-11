@@ -59,8 +59,15 @@ export function buildAuthorizeUrl(state: string): string {
   return `${AUTHORIZE_URL}?${params.toString()}`;
 }
 
-async function postToken(body: URLSearchParams): Promise<TokenResponse> {
-  const res = await fetch(TOKEN_URL, {
+/**
+ * Injectable fetch. The refresh path is the most failure-prone code in the project, so it
+ * must be testable without touching the network — a seam that stops at the client would
+ * leave exactly the wrong function unverified.
+ */
+export type FetchLike = typeof fetch;
+
+async function postToken(body: URLSearchParams, doFetch: FetchLike = fetch): Promise<TokenResponse> {
+  const res = await doFetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body,
@@ -97,7 +104,7 @@ async function postToken(body: URLSearchParams): Promise<TokenResponse> {
   return data as TokenResponse;
 }
 
-export function exchangeCodeForTokens(code: string): Promise<TokenResponse> {
+export function exchangeCodeForTokens(code: string, doFetch?: FetchLike): Promise<TokenResponse> {
   return postToken(
     new URLSearchParams({
       grant_type: 'authorization_code',
@@ -106,10 +113,11 @@ export function exchangeCodeForTokens(code: string): Promise<TokenResponse> {
       redirect_uri: requireEnv('HUBSPOT_REDIRECT_URI'),
       code,
     }),
+    doFetch,
   );
 }
 
-export function refreshAccessToken(refreshToken: string): Promise<TokenResponse> {
+export function refreshAccessToken(refreshToken: string, doFetch?: FetchLike): Promise<TokenResponse> {
   return postToken(
     new URLSearchParams({
       grant_type: 'refresh_token',
@@ -117,11 +125,12 @@ export function refreshAccessToken(refreshToken: string): Promise<TokenResponse>
       client_secret: requireEnv('HUBSPOT_CLIENT_SECRET'),
       refresh_token: refreshToken,
     }),
+    doFetch,
   );
 }
 
-export async function introspect(accessToken: string): Promise<TokenInfo> {
-  const res = await fetch(`${INTROSPECT_URL}/${encodeURIComponent(accessToken)}`);
+export async function introspect(accessToken: string, doFetch: FetchLike = fetch): Promise<TokenInfo> {
+  const res = await doFetch(`${INTROSPECT_URL}/${encodeURIComponent(accessToken)}`);
   if (!res.ok) {
     throw new AppError(
       ErrorCode.OAUTH_INTROSPECTION_FAILED,
