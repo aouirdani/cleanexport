@@ -1,5 +1,5 @@
 # ollama create cleanexport-dev -f Modelfile
-FROM qwen3.6:27b
+FROM qwen3-coder:30b
 
 # Ollama's default context is small and truncates prompts SILENTLY.
 # 32K is the working number on a 24GB card; raise only after testing with `ollama ps`.
