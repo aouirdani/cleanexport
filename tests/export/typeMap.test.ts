@@ -1,0 +1,527 @@
+import { describe, it, expect } from 'vitest';
+import { mapCell, type PropertyDef, type MappedCell } from '@/lib/export/typeMap';
+
+// Rules under test (specs/05-EXPORT-ENGINE.md sections 4.0 and 4; ground truth
+// observed values from recon/FINDINGS.md sections 3, 7, 8 - FINDINGS wins on conflict):
+//
+//   Dispatch order (section 4.0): def.referencedObjectType is checked BEFORE the
+//   type/fieldType table. OWNER resolves via the optional ctx.owners Map, keyed by
+//   the owner's `id` field as a STRING (FINDINGS.md section 6: id is a string,
+//   userId is a number - matching on userId is wrong). Without ctx, or when the id
+//   is absent from the map, OWNER falls back to the raw id as unresolved text
+//   rather than throwing. Every other referencedObjectType always stays text.
+//
+//   type decides value semantics; fieldType only decides wrapText / multi-select
+//   detection (section 4, and FINDINGS section 7 "the rule this inventory establishes").
+//
+//   Every raw value arrives as string | null, including numbers (FINDINGS section 3).
+//   mapCell parses, it does not merely format.
+
+function expectCell(
+  result: MappedCell,
+  expected: { value: MappedCell['value']; numFmt?: string; wrapText?: boolean },
+) {
+  if (expected.value instanceof Date) {
+    expect(result.value).toBeInstanceOf(Date);
+    expect((result.value as Date).getTime()).toBe(expected.value.getTime());
+  } else {
+    expect(result.value).toBe(expected.value);
+  }
+  expect(result.numFmt).toBe(expected.numFmt);
+  expect(result.wrapText).toBe(expected.wrapText);
+}
+
+const NUMBER_FMT = '#,##0.###';
+const DATETIME_FMT = 'yyyy-mm-dd hh:mm';
+const DATE_FMT = 'yyyy-mm-dd';
+
+describe('mapCell - trap A: referencedObjectType is checked before the type/fieldType table', () => {
+  // FINDINGS.md section 8 / spec section 4.0 say OWNER "resolves via an owners
+  // cache" while every other referencedObjectType stays unresolved text. mapCell's
+  // third parameter, ctx.owners, is that cache: a Map keyed by the owner's `id`
+  // field as a STRING (FINDINGS.md section 6 - id is a string, userId is a number;
+  // matching on userId would silently never resolve anything). Without ctx, or
+  // with ctx but no matching id in the map, OWNER falls back to the raw id as
+  // unresolved text rather than throwing. Every other referencedObjectType always
+  // stays unresolved text regardless of ctx.
+
+  it('hubspot_owner_id without ctx (enumeration/select, EMPTY options, referencedObjectType OWNER) stays unresolved text', () => {
+    const def: PropertyDef = {
+      name: 'hubspot_owner_id',
+      label: 'Owner',
+      type: 'enumeration',
+      fieldType: 'select',
+      options: [],
+      referencedObjectType: 'OWNER',
+    };
+    // naive enumeration handling against an empty options array is exactly the
+    // failure mode section 4.0 warns about - it must not throw either.
+    expect(() => mapCell('96879917', def)).not.toThrow();
+    const result = mapCell('96879917', def);
+    expectCell(result, { value: '96879917' });
+    expect(typeof result.value).toBe('string');
+  });
+
+  it('hubspot_owner_id with a populated ctx.owners Map resolves to "Firstname Lastname"', () => {
+    const def: PropertyDef = {
+      name: 'hubspot_owner_id',
+      label: 'Owner',
+      type: 'enumeration',
+      fieldType: 'select',
+      options: [],
+      referencedObjectType: 'OWNER',
+    };
+    // keyed by id (string), per FINDINGS.md section 6 - not userId (number).
+    const owners = new Map([['96879917', { name: 'Aymane Ouirdani', email: 'aymane@example.com' }]]);
+    const result = mapCell('96879917', def, { owners });
+    expectCell(result, { value: 'Aymane Ouirdani' });
+  });
+
+  it('hubspot_owner_id with ctx.owners provided but the id absent from the Map falls back to raw text, never throws', () => {
+    const def: PropertyDef = {
+      name: 'hubspot_owner_id',
+      label: 'Owner',
+      type: 'enumeration',
+      fieldType: 'select',
+      options: [],
+      referencedObjectType: 'OWNER',
+    };
+    const owners = new Map([['11111111', { name: 'Someone Else', email: 'someone@example.com' }]]);
+    expect(() => mapCell('96879917', def, { owners })).not.toThrow();
+    const result = mapCell('96879917', def, { owners });
+    expectCell(result, { value: '96879917' });
+  });
+
+  it('associatedcompanyid (number/number, referencedObjectType COMPANY) stays text, not a formatted number', () => {
+    const def: PropertyDef = {
+      name: 'associatedcompanyid',
+      label: 'Company',
+      type: 'number',
+      fieldType: 'number',
+      referencedObjectType: 'COMPANY',
+    };
+    const result = mapCell('442222359747', def);
+    expectCell(result, { value: '442222359747' });
+    expect(typeof result.value).toBe('string');
+  });
+
+  it('an id longer than 15 significant digits is preserved exactly because it is never parsed as a number', () => {
+    // Excel/IEEE-754 doubles keep only 15 significant digits. If this were parsed
+    // as a number it would be silently rounded into a DIFFERENT id.
+    const def: PropertyDef = {
+      name: 'associatedcompanyid',
+      label: 'Company',
+      type: 'number',
+      fieldType: 'number',
+      referencedObjectType: 'COMPANY',
+    };
+    const longId = '1234567890123456'; // 16 digits
+    const result = mapCell(longId, def);
+    expect(result.value).toBe(longId);
+  });
+
+  it('hs_latest_sequence_enrolled (number/number, referencedObjectType SEQUENCE) stays text', () => {
+    const def: PropertyDef = {
+      name: 'hs_latest_sequence_enrolled',
+      label: 'Latest sequence enrolled',
+      type: 'number',
+      fieldType: 'number',
+      referencedObjectType: 'SEQUENCE',
+    };
+    const result = mapCell('987654321', def);
+    expectCell(result, { value: '987654321' });
+  });
+
+  it('any other referencedObjectType (not just the two observed) also stays unresolved text', () => {
+    const def: PropertyDef = {
+      name: 'associateddealid',
+      label: 'Deal',
+      type: 'number',
+      fieldType: 'number',
+      referencedObjectType: 'DEAL',
+    };
+    const result = mapCell('55555', def);
+    expectCell(result, { value: '55555' });
+  });
+
+  it('contrast: the identical number/number definition WITHOUT referencedObjectType parses as a real number', () => {
+    // Proves referencedObjectType is what flips the behaviour - the type/fieldType
+    // table alone would have produced a number either way.
+    const def: PropertyDef = {
+      name: 'some_other_number_property',
+      label: 'Some Number',
+      type: 'number',
+      fieldType: 'number',
+    };
+    const result = mapCell('442222359747', def);
+    expectCell(result, { value: 442222359747, numFmt: NUMBER_FMT });
+    expect(typeof result.value).toBe('number');
+  });
+});
+
+describe('mapCell - trap B: type decides value semantics, fieldType does not', () => {
+  it('datetime/date parses to a real Date and keeps a time-aware numFmt', () => {
+    const def: PropertyDef = { name: 'lastmodifieddate', label: 'Last Modified', type: 'datetime', fieldType: 'date' };
+    const result = mapCell('2026-08-09T22:22:08.804Z', def);
+    expectCell(result, { value: new Date('2026-08-09T22:22:08.804Z'), numFmt: DATETIME_FMT });
+  });
+
+  it('date/date parses to a real Date with a date-only numFmt', () => {
+    const def: PropertyDef = { name: 'date_of_birth', label: 'Date of Birth', type: 'date', fieldType: 'date' };
+    const result = mapCell('2026-03-15T00:00:00.000Z', def);
+    expectCell(result, { value: new Date('2026-03-15T00:00:00.000Z'), numFmt: DATE_FMT });
+  });
+
+  it('the trap itself: identical fieldType "date", different declared type -> different numFmt', () => {
+    const raw = '2026-08-09T14:30:00.000Z';
+    const datetimeDef: PropertyDef = { name: 'a', label: 'A', type: 'datetime', fieldType: 'date' };
+    const dateDef: PropertyDef = { name: 'b', label: 'B', type: 'date', fieldType: 'date' };
+
+    const datetimeResult = mapCell(raw, datetimeDef);
+    const dateResult = mapCell(raw, dateDef);
+
+    expect(datetimeResult.numFmt).toBe(DATETIME_FMT);
+    expect(dateResult.numFmt).toBe(DATE_FMT);
+    expect(datetimeResult.numFmt).not.toBe(dateResult.numFmt);
+    // keying on fieldType alone (both are "date") would have produced identical
+    // output for both defs - it must not.
+  });
+
+  it('datetime/calculation_rollup still parses to a Date, even though fieldType is not "date"', () => {
+    const def: PropertyDef = { name: 'hs_computed_datetime', label: 'Computed', type: 'datetime', fieldType: 'calculation_rollup' };
+    const result = mapCell('2026-01-01T09:00:00.000Z', def);
+    expectCell(result, { value: new Date('2026-01-01T09:00:00.000Z'), numFmt: DATETIME_FMT });
+  });
+});
+
+describe('mapCell - trap C: raw values arrive as string | null and must be parsed, not merely formatted', () => {
+  it('a numeric string is parsed into a real number', () => {
+    const def: PropertyDef = { name: 'amount', label: 'Amount', type: 'number', fieldType: 'number' };
+    const result = mapCell('1234.56', def);
+    expect(result.value).toBe(1234.56);
+    expect(typeof result.value).toBe('number');
+  });
+
+  it('a boolean string is parsed into a real boolean, not left as the string "true"', () => {
+    const def: PropertyDef = { name: 'flag', label: 'Flag', type: 'bool', fieldType: 'booleancheckbox' };
+    const result = mapCell('true', def);
+    expect(result.value).toBe(true);
+    expect(typeof result.value).toBe('boolean');
+  });
+
+  it('a date string is parsed into a real Date instance, not left as text', () => {
+    const def: PropertyDef = { name: 'createdate', label: 'Create Date', type: 'datetime', fieldType: 'date' };
+    const result = mapCell('2026-08-09T00:01:08.512Z', def);
+    expect(result.value).toBeInstanceOf(Date);
+  });
+
+  it('DECISION 2: enumeration/booleancheckbox parses to a real boolean, not the label string "True"', () => {
+    const def: PropertyDef = {
+      name: 'currentlyinworkflow',
+      label: 'Currently In Workflow',
+      type: 'enumeration',
+      fieldType: 'booleancheckbox',
+      options: [
+        { value: 'true', label: 'True' },
+        { value: 'false', label: 'False' },
+      ],
+    };
+    const result = mapCell('true', def);
+    expect(result.value).toBe(true);
+    expect(typeof result.value).toBe('boolean');
+  });
+});
+
+describe('mapCell - unparseable numbers and dates become an empty cell, never NaN or Invalid Date', () => {
+  // specs/05-EXPORT-ENGINE.md section 1: invariant 4 forbids NaN in a cell;
+  // invariant 5 requires the file to open without a repair prompt, which an
+  // Invalid Date would break.
+  it.each([
+    ['empty string', ''],
+    ['whitespace only', '   '],
+    ['non-numeric text', 'n/a'],
+    ['non-numeric text', 'abc'],
+  ])('number/number with unparseable raw "%s" -> empty cell, never NaN', (_label, raw) => {
+    const def: PropertyDef = { name: 'amount', label: 'Amount', type: 'number', fieldType: 'number' };
+    const result = mapCell(raw, def);
+    expect(result.value).toBeNull();
+    expect(result.value).not.toBeNaN();
+  });
+
+  it('number/number with a valid raw value still parses (the guard does not swallow good data)', () => {
+    const def: PropertyDef = { name: 'amount', label: 'Amount', type: 'number', fieldType: 'number' };
+    const result = mapCell('1234.56', def);
+    expect(result.value).toBe(1234.56);
+    expect(result.numFmt).toBe(NUMBER_FMT);
+  });
+
+  it.each([
+    ['empty string', ''],
+    ['unparseable text', 'not-a-date'],
+    ['out-of-range calendar date', '2026-13-45'],
+  ])('datetime/date with unparseable raw "%s" -> empty cell, never an Invalid Date', (_label, raw) => {
+    const def: PropertyDef = { name: 'lastmodifieddate', label: 'Last Modified', type: 'datetime', fieldType: 'date' };
+    const result = mapCell(raw, def);
+    expect(result.value).toBeNull();
+  });
+
+  it('datetime/date with a valid raw value still parses (the guard does not swallow good data)', () => {
+    const def: PropertyDef = { name: 'lastmodifieddate', label: 'Last Modified', type: 'datetime', fieldType: 'date' };
+    const result = mapCell('2026-08-09T22:22:08.804Z', def);
+    expectCell(result, { value: new Date('2026-08-09T22:22:08.804Z'), numFmt: DATETIME_FMT });
+  });
+
+  it.each([
+    ['empty string', ''],
+    ['unparseable text', 'not-a-date'],
+    ['out-of-range calendar date', '2026-13-45'],
+  ])('date/date with unparseable raw "%s" -> empty cell, never an Invalid Date', (_label, raw) => {
+    const def: PropertyDef = { name: 'date_of_birth', label: 'Date of Birth', type: 'date', fieldType: 'date' };
+    const result = mapCell(raw, def);
+    expect(result.value).toBeNull();
+  });
+
+  it('date/date with a valid raw value still parses (the guard does not swallow good data)', () => {
+    const def: PropertyDef = { name: 'date_of_birth', label: 'Date of Birth', type: 'date', fieldType: 'date' };
+    const result = mapCell('2026-03-15T00:00:00.000Z', def);
+    expectCell(result, { value: new Date('2026-03-15T00:00:00.000Z'), numFmt: DATE_FMT });
+  });
+});
+
+describe('mapCell - FINDINGS.md section 7 inventory (contacts, exhaustive)', () => {
+  it('string/text -> Text', () => {
+    const def: PropertyDef = { name: 'firstname', label: 'First Name', type: 'string', fieldType: 'text' };
+    expectCell(mapCell('Brian', def), { value: 'Brian' });
+  });
+
+  it('string/textarea -> Text, wrapText', () => {
+    const def: PropertyDef = { name: 'message', label: 'Message', type: 'string', fieldType: 'textarea' };
+    expectCell(mapCell('Line one', def), { value: 'Line one', wrapText: true });
+  });
+
+  it('string/phonenumber -> Text, leading zeros preserved, never numeric', () => {
+    const def: PropertyDef = { name: 'mobilephone', label: 'Mobile Phone', type: 'string', fieldType: 'phonenumber' };
+    const result = mapCell('0102030405', def);
+    expectCell(result, { value: '0102030405' });
+    expect(typeof result.value).toBe('string');
+  });
+
+  it('string/html -> tags stripped to plain text (DECISION 1)', () => {
+    const def: PropertyDef = { name: 'hs_chat_assistant_summary', label: 'Chat Assistant: Summary', type: 'string', fieldType: 'html' };
+    expectCell(mapCell('<p>Hello <b>World</b></p>', def), { value: 'Hello World' });
+  });
+
+  it.each([
+    ['calculation_rollup', 'calculation_rollup'],
+    ['calculation_equation', 'calculation_equation'],
+  ])('string/%s -> Text', (_label, fieldType) => {
+    const def: PropertyDef = { name: 'computed_string', label: 'Computed', type: 'string', fieldType };
+    expectCell(mapCell('computed value', def), { value: 'computed value' });
+  });
+
+  it('phone_number/phonenumber -> Text', () => {
+    const def: PropertyDef = { name: 'phone', label: 'Phone', type: 'phone_number', fieldType: 'phonenumber' };
+    const result = mapCell('+33102030405', def);
+    expectCell(result, { value: '+33102030405' });
+    expect(typeof result.value).toBe('string');
+  });
+
+  it('number/number -> parseFloat -> number', () => {
+    const def: PropertyDef = { name: 'num_children', label: 'Children', type: 'number', fieldType: 'number' };
+    expectCell(mapCell('3', def), { value: 3, numFmt: NUMBER_FMT });
+  });
+
+  it.each([
+    ['calculation_rollup', 'calculation_rollup'],
+    ['calculation_equation', 'calculation_equation'],
+    ['calculation_score', 'calculation_score'],
+    ['calculation_read_time', 'calculation_read_time'],
+  ])('number/%s -> parseFloat -> number (full calculation_* family)', (_label, fieldType) => {
+    const def: PropertyDef = { name: 'computed_number', label: 'Computed', type: 'number', fieldType };
+    expectCell(mapCell('42.5', def), { value: 42.5, numFmt: NUMBER_FMT });
+  });
+
+  it('datetime/date -> parse -> Date', () => {
+    const def: PropertyDef = { name: 'createdate', label: 'Create Date', type: 'datetime', fieldType: 'date' };
+    expectCell(mapCell('2026-08-09T00:01:08.512Z', def), {
+      value: new Date('2026-08-09T00:01:08.512Z'),
+      numFmt: DATETIME_FMT,
+    });
+  });
+
+  it.each([
+    ['calculation_rollup', 'calculation_rollup'],
+    ['calculation_equation', 'calculation_equation'],
+  ])('datetime/%s -> parse -> Date', (_label, fieldType) => {
+    const def: PropertyDef = { name: 'computed_datetime', label: 'Computed', type: 'datetime', fieldType };
+    expectCell(mapCell('2026-05-05T12:00:00.000Z', def), {
+      value: new Date('2026-05-05T12:00:00.000Z'),
+      numFmt: DATETIME_FMT,
+    });
+  });
+
+  it('date/date -> parse -> Date', () => {
+    const def: PropertyDef = { name: 'date_of_birth', label: 'Date of Birth', type: 'date', fieldType: 'date' };
+    expectCell(mapCell('2026-03-15T00:00:00.000Z', def), {
+      value: new Date('2026-03-15T00:00:00.000Z'),
+      numFmt: DATE_FMT,
+    });
+  });
+
+  it.each([
+    ['true', true],
+    ['false', false],
+  ])('bool/booleancheckbox "%s" -> boolean', (raw, expected) => {
+    const def: PropertyDef = { name: 'is_active', label: 'Active', type: 'bool', fieldType: 'booleancheckbox' };
+    expectCell(mapCell(raw, def), { value: expected });
+  });
+
+  it.each([
+    ['calculation_equation', 'calculation_equation'],
+    ['calculation_read_time', 'calculation_read_time'],
+  ])('bool/%s -> boolean', (_label, fieldType) => {
+    const def: PropertyDef = { name: 'computed_bool', label: 'Computed', type: 'bool', fieldType };
+    expectCell(mapCell('true', def), { value: true });
+  });
+
+  it('enumeration/select -> internal value resolved to its label', () => {
+    const def: PropertyDef = {
+      name: 'lifecyclestage',
+      label: 'Lifecycle Stage',
+      type: 'enumeration',
+      fieldType: 'select',
+      options: [
+        { value: 'lead', label: 'Lead' },
+        { value: 'customer', label: 'Customer' },
+      ],
+    };
+    expectCell(mapCell('customer', def), { value: 'Customer' });
+  });
+
+  it('enumeration/checkbox -> multi-select, ";"-separated, mapped and joined with ", "', () => {
+    const def: PropertyDef = {
+      name: 'interests',
+      label: 'Interests',
+      type: 'enumeration',
+      fieldType: 'checkbox',
+      options: [
+        { value: 'a', label: 'Alpha' },
+        { value: 'b', label: 'Beta' },
+        { value: 'c', label: 'Gamma' },
+      ],
+    };
+    expectCell(mapCell('a;b;c', def), { value: 'Alpha, Beta, Gamma' });
+  });
+
+  it('enumeration/checkbox with a single selected value -> single label, no separator', () => {
+    const def: PropertyDef = {
+      name: 'interests',
+      label: 'Interests',
+      type: 'enumeration',
+      fieldType: 'checkbox',
+      options: [{ value: 'a', label: 'Alpha' }],
+    };
+    expectCell(mapCell('a', def), { value: 'Alpha' });
+  });
+
+  it('enumeration/radio -> internal value resolved to its label', () => {
+    const def: PropertyDef = {
+      name: 'preferred_contact_method',
+      label: 'Preferred Contact Method',
+      type: 'enumeration',
+      fieldType: 'radio',
+      options: [
+        { value: 'email', label: 'Email' },
+        { value: 'phone', label: 'Phone' },
+      ],
+    };
+    expectCell(mapCell('email', def), { value: 'Email' });
+  });
+
+  it('enumeration/booleancheckbox -> real boolean (DECISION 2), not the label text', () => {
+    const def: PropertyDef = {
+      name: 'currentlyinworkflow',
+      label: 'Currently In Workflow',
+      type: 'enumeration',
+      fieldType: 'booleancheckbox',
+      options: [
+        { value: 'true', label: 'True' },
+        { value: 'false', label: 'False' },
+      ],
+    };
+    expectCell(mapCell('false', def), { value: false });
+  });
+
+  it('enumeration/calculation_rollup -> internal value resolved to its label', () => {
+    const def: PropertyDef = {
+      name: 'computed_enum',
+      label: 'Computed',
+      type: 'enumeration',
+      fieldType: 'calculation_rollup',
+      options: [{ value: 'x', label: 'X Label' }],
+    };
+    expectCell(mapCell('x', def), { value: 'X Label' });
+  });
+
+  it('object_coordinates/text -> text fallback (DECISION 3)', () => {
+    const def: PropertyDef = { name: 'hs_notes_last_activity', label: 'Last Activity', type: 'object_coordinates', fieldType: 'text' };
+    expectCell(mapCell('0-1-840926056668', def), { value: '0-1-840926056668' });
+  });
+});
+
+describe('mapCell - unmapped enumeration value falls back to the raw text rather than throwing', () => {
+  // Not explicitly speced, but consistent with "unknown/unmapped -> text, never
+  // throw": an internal value with no matching option must still produce a legal,
+  // non-throwing cell rather than null or an exception.
+  it('an internal value absent from options is returned as raw text', () => {
+    const def: PropertyDef = {
+      name: 'lifecyclestage',
+      label: 'Lifecycle Stage',
+      type: 'enumeration',
+      fieldType: 'select',
+      options: [{ value: 'lead', label: 'Lead' }],
+    };
+    expect(() => mapCell('unknown_internal_value', def)).not.toThrow();
+    const result = mapCell('unknown_internal_value', def);
+    expect(result.value).toBe('unknown_internal_value');
+  });
+});
+
+describe('mapCell - unknown type falls back to text and never throws', () => {
+  it('a type not present in the inventory is treated as text', () => {
+    const def: PropertyDef = { name: 'hs_future_property', label: 'Future Property', type: 'some_brand_new_type', fieldType: 'whatever' };
+    expect(() => mapCell('anything', def)).not.toThrow();
+    expectCell(mapCell('anything', def), { value: 'anything' });
+  });
+
+  it('an unknown type never throws even with a value that looks numeric', () => {
+    const def: PropertyDef = { name: 'hs_future_property', label: 'Future Property', type: 'some_brand_new_type', fieldType: 'whatever' };
+    expect(() => mapCell('12345', def)).not.toThrow();
+    expectCell(mapCell('12345', def), { value: '12345' });
+  });
+});
+
+describe('mapCell - null raw is always an empty cell, regardless of the definition', () => {
+  it.each([
+    ['string/text', { name: 'firstname', label: 'First Name', type: 'string', fieldType: 'text' } as PropertyDef],
+    ['number/number', { name: 'amount', label: 'Amount', type: 'number', fieldType: 'number' } as PropertyDef],
+    ['datetime/date', { name: 'createdate', label: 'Create Date', type: 'datetime', fieldType: 'date' } as PropertyDef],
+    ['bool/booleancheckbox', { name: 'is_active', label: 'Active', type: 'bool', fieldType: 'booleancheckbox' } as PropertyDef],
+    [
+      'enumeration/select',
+      {
+        name: 'lifecyclestage',
+        label: 'Lifecycle Stage',
+        type: 'enumeration',
+        fieldType: 'select',
+        options: [{ value: 'lead', label: 'Lead' }],
+      } as PropertyDef,
+    ],
+    [
+      'referencedObjectType OWNER',
+      { name: 'hubspot_owner_id', label: 'Owner', type: 'enumeration', fieldType: 'select', options: [], referencedObjectType: 'OWNER' } as PropertyDef,
+    ],
+  ])('%s with null raw -> null value', (_label, def) => {
+    expect(mapCell(null, def).value).toBeNull();
+  });
+});
