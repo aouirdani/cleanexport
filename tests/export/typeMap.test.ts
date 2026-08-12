@@ -32,6 +32,7 @@ function expectCell(
 }
 
 const NUMBER_FMT = '#,##0.###';
+const CURRENCY_NUMBER_FMT = '#,##0.00';
 const DATETIME_FMT = 'yyyy-mm-dd hh:mm';
 const DATE_FMT = 'yyyy-mm-dd';
 
@@ -285,6 +286,48 @@ describe('mapCell - unparseable numbers and dates become an empty cell, never Na
     const def: PropertyDef = { name: 'date_of_birth', label: 'Date of Birth', type: 'date', fieldType: 'date' };
     const result = mapCell('2026-03-15T00:00:00.000Z', def);
     expectCell(result, { value: new Date('2026-03-15T00:00:00.000Z'), numFmt: DATE_FMT });
+  });
+});
+
+describe('mapCell - showCurrencySymbol (FINDINGS.md section 13: currency is per record, not per portal)', () => {
+  it('amount with showCurrencySymbol true gets the currency numFmt, not the plain number numFmt', () => {
+    const def: PropertyDef = {
+      name: 'amount',
+      label: 'Amount',
+      type: 'number',
+      fieldType: 'number',
+      showCurrencySymbol: true,
+      currencyPropertyName: 'deal_currency_code',
+    };
+    const result = mapCell('1234.5', def);
+    expect(result.value).toBe(1234.5);
+    expect(result.numFmt).toBe(CURRENCY_NUMBER_FMT);
+    // numFmt is per column; currency is per record. No symbol belongs here -
+    // a column-level symbol would mislabel the moment an export mixes
+    // currencies (e.g. one EUR deal and one USD deal).
+    expect(result.numFmt).not.toMatch(/[$€£¥]/);
+  });
+
+  it('a plain number without the flag keeps the ordinary numFmt', () => {
+    const def: PropertyDef = { name: 'num_children', label: 'Children', type: 'number', fieldType: 'number' };
+    const result = mapCell('3', def);
+    expect(result.value).toBe(3);
+    expect(result.numFmt).toBe(NUMBER_FMT);
+  });
+
+  it('an empty string with showCurrencySymbol true still yields an empty cell, not NaN', () => {
+    const def: PropertyDef = {
+      name: 'amount',
+      label: 'Amount',
+      type: 'number',
+      fieldType: 'number',
+      showCurrencySymbol: true,
+      currencyPropertyName: 'deal_currency_code',
+    };
+    const result = mapCell('', def);
+    expect(result.value).toBeNull();
+    expect(result.value).not.toBeNaN();
+    expect(result.numFmt).toBeUndefined();
   });
 });
 

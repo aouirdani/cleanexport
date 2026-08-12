@@ -118,7 +118,7 @@ object types before assuming it transfers.
 | `phone_number` | `phonenumber` | Text |
 | `number` | `number` | `parseFloat` → number, `numFmt '#,##0.###'` |
 | `number` | `calculation_*` | `parseFloat` → number |
-| `number` + `showCurrencySymbol` | any | number, `numFmt '#,##0.00'`, currency in the header |
+| `number` + `showCurrencySymbol` | any | number, `numFmt '#,##0.00'`. **Never embed a currency symbol in `numFmt`** — format is per column, currency is per row (`currencyPropertyName`, FINDINGS §13). |
 | `datetime` | `date` or `calculation_*` | parse → `Date`, `numFmt 'yyyy-mm-dd hh:mm'`, converted to the export timezone |
 | `date` | `date` | parse → `Date`, `numFmt 'yyyy-mm-dd'` |
 | `bool` | `booleancheckbox`, `calculation_*` | `"true"`/`"false"` → real boolean |

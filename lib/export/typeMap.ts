@@ -21,6 +21,14 @@ export interface PropertyDef {
   fieldType: string;
   options?: { value: string; label: string }[];
   referencedObjectType?: string;
+  /** The property is money, not a plain number (FINDINGS.md section 13). */
+  showCurrencySymbol?: boolean;
+  /**
+   * Names ANOTHER property holding this record's currency code. Currency is
+   * per record, not per portal - never bake a symbol into numFmt from this
+   * (FINDINGS.md section 13: one export can mix EUR and USD deals).
+   */
+  currencyPropertyName?: string;
 }
 
 export interface MappedCell {
@@ -34,6 +42,7 @@ interface MapCellContext {
 }
 
 const NUMBER_FMT = '#,##0.###';
+const CURRENCY_NUMBER_FMT = '#,##0.00';
 const DATETIME_FMT = 'yyyy-mm-dd hh:mm';
 const DATE_FMT = 'yyyy-mm-dd';
 
@@ -98,7 +107,12 @@ function mapByType(raw: string, def: PropertyDef): MappedCell {
       // calculation_* fieldTypes are read-only computed numbers; they export
       // the same way as a plain number.
       const value = parseFiniteNumber(raw);
-      return value === null ? { value: null } : { value, numFmt: NUMBER_FMT };
+      if (value === null) return { value: null };
+      // showCurrencySymbol only changes numFmt (decimals, no literal symbol -
+      // the symbol is per record via currencyPropertyName, never baked into a
+      // per-column numFmt). The NaN guard above still applies either way.
+      const numFmt = def.showCurrencySymbol ? CURRENCY_NUMBER_FMT : NUMBER_FMT;
+      return { value, numFmt };
     }
 
     case 'datetime': {

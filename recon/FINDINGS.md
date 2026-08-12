@@ -286,6 +286,50 @@ properties.
 T10 is therefore two batched calls per page, not one. Budget for it in the rate limiter:
 an export with associations costs roughly double the API calls of one without.
 
+## 13. Currency is per-record, not per-portal
+
+`deals.amount` observed on the real portal:
+
+```json
+{
+  "name": "amount", "type": "number", "fieldType": "number",
+  "showCurrencySymbol": true,
+  "currencyPropertyName": "deal_currency_code",
+  "calculated": false, "hidden": false, "hubspotDefined": true
+}
+```
+
+Two fields the original `PropertyDef` did not carry:
+
+- **`showCurrencySymbol`** — the property is money, not a plain number. Without it,
+  amounts export as bare numbers and the customer sees `1234.56` where they expect a
+  currency-formatted cell.
+- **`currencyPropertyName`** — names *another property* holding this record's currency
+  code. Currency is therefore **per record**, not per portal: one export can contain a
+  EUR deal and a USD deal, and a single hardcoded symbol would mislabel one of them.
+
+### Consequences
+
+1. Add both fields to `PropertyDef`.
+2. When `showCurrencySymbol` is true, `numFmt` becomes `'#,##0.00'` rather than
+   `'#,##0.###'`.
+3. When `currencyPropertyName` is set, the fetcher (T9) must request that property
+   alongside the amount, even if the user did not select it — otherwise the currency
+   is unknowable at write time.
+4. The header should name the currency, or an adjacent column should carry the code.
+   **Do not embed a currency symbol in `numFmt`**: the format is per column, the
+   currency is per row, so a column-level symbol is wrong the moment two currencies
+   appear.
+
+### Other useful flags on the same payload
+
+| Field | Use |
+|---|---|
+| `hidden` | Hidden in the HubSpot UI. Candidate for the system-properties toggle alongside `hs_`. |
+| `calculated` | Read-only computed. Exports normally; useful to mark in the picker. |
+| `hubspotDefined` | Distinguishes stock properties from a customer's custom ones. |
+| `description` | Free tooltip text for the property picker in T17. |
+
 ---
 
 ## Still to verify
