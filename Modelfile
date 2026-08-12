@@ -3,7 +3,7 @@ FROM qwen3-coder:30b
 
 # Ollama's default context is small and truncates prompts SILENTLY.
 # 32K is the working number on a 24GB card; raise only after testing with `ollama ps`.
-PARAMETER num_ctx 32768
+PARAMETER num_ctx 65536
 
 # Code wants the most probable token, not a creative one.
 PARAMETER temperature 0.1
