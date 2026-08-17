@@ -1,0 +1,537 @@
+import { describe, it, expect, afterEach } from 'vitest';
+import ExcelJS from 'exceljs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { writeExport } from '@/lib/export/writer';
+import type { HubSpotRecord } from '@/lib/export/fetch';
+import type { PropertyDef } from '@/lib/export/typeMap';
+
+// Rules under test (specs/05-EXPORT-ENGINE.md sections 1, 2, 5, 7, 10;
+// recon/FINDINGS.md sections 9, 10; lib/export/sanitize.ts, lib/export/typeMap.ts):
+//
+//   Contract (section 1), the five invariants:
+//     1. one record -> exactly one row, regardless of content
+//     2. columns follow `properties` order exactly, never sorted
+//     3. dates are Excel dates, numbers are Excel numbers, text is text
+//     4. no cell contains null, undefined, NaN, or [object Object]
+//     5. the file opens without a repair prompt
+//
+//   FINDINGS section 10: HubSpot always returns createdate, hs_object_id and
+//   lastmodifieddate whether or not they were requested. The writer must
+//   iterate `properties` (the user's ordered array), never
+//   Object.keys(record.properties) - the latter would add unrequested
+//   columns and destroy the configured order.
+//
+//   FINDINGS section 9: a bare `\n` inside a property value is legal in an
+//   XLSX cell. Preserve it and set wrapText - the record stays one row.
+//
+//   Section 5: headerStyle LABEL/INTERNAL put data on row 2; BOTH puts
+//   labels on row 1, internal names on row 2, data on row 3.
+//
+//   Section 7: association columns are appended after the primary object's
+//   columns, headers prefixed by the object name ("Company (dot) Name").
+//
+// This file writes to a REAL temp file with ExcelJS and reads it back with a
+// separate ExcelJS.Workbook instance - never asserting on an in-memory mock -
+// because the whole point of these invariants is that the FILE is correct.
+//
+// Two judgment calls this file makes, since the given writeExport signature
+// does not carry enough information to do otherwise:
+//
+//   - `associations` (from lib/export/associations.ts) already holds final,
+//     per-record values - the writer places them directly into cells
+//     (through sanitizeCell only, for safety) rather than re-running mapCell,
+//     since writeExport is not given a PropertyDef map for the associated
+//     object type.
+//   - `associationSpec.columns` are raw internal names ('name', 'domain')
+//     with no accompanying label, unlike the primary object's PropertyDef
+//     map. FINDINGS section 7's own example ("Company (dot) Name", "Company
+//     (dot) Domain") capitalizes the first letter of the raw column name, so
+//     that is the convention this file expects: `${toObjectType} · ${Cap(column)}`.
+//
+// "Zero records" (requirement F) is exercised the same way an exhausted
+// fetchRecords generator behaves (tests/export/fetch.test.ts): the async
+// iterable yields no pages at all, not a page containing an empty array.
+
+const MIDDLE_DOT = String.fromCharCode(0xb7);
+const E_ACUTE = String.fromCharCode(0xe9);
+const LF = String.fromCharCode(0x0a);
+const ELLIPSIS_SUFFIX = ' [' + String.fromCharCode(0x2026) + ']';
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+const FIRSTNAME_DEF: PropertyDef = { name: 'firstname', label: 'First Name', type: 'string', fieldType: 'text' };
+const LASTNAME_DEF: PropertyDef = { name: 'lastname', label: 'Last Name', type: 'string', fieldType: 'text' };
+const EMAIL_DEF: PropertyDef = { name: 'email', label: 'Email', type: 'string', fieldType: 'text' };
+const PHONE_DEF: PropertyDef = { name: 'phone', label: 'Phone', type: 'string', fieldType: 'phonenumber' };
+const AMOUNT_DEF: PropertyDef = { name: 'amount', label: 'Amount', type: 'number', fieldType: 'number' };
+const CLOSEDATE_DEF: PropertyDef = { name: 'closedate', label: 'Close Date', type: 'date', fieldType: 'date' };
+const MESSAGE_DEF: PropertyDef = { name: 'message', label: 'Message', type: 'string', fieldType: 'textarea' };
+
+function record(id: string, properties: Record<string, string | null>): HubSpotRecord {
+  return { id, properties };
+}
+
+function pages(...batches: HubSpotRecord[][]): AsyncIterable<HubSpotRecord[]> {
+  return (async function* () {
+    for (const batch of batches) yield batch;
+  })();
+}
+
+function noPages(): AsyncIterable<HubSpotRecord[]> {
+  return (async function* () {})();
+}
+
+function rowValues(row: ExcelJS.Row, count: number): unknown[] {
+  return Array.from({ length: count }, (_unused, i) => row.getCell(i + 1).value);
+}
+
+const tempDirs: string[] = [];
+
+async function tempFilePath(basename: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'writer-test-'));
+  tempDirs.push(dir);
+  return join(dir, basename);
+}
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+async function readWorkbook(filePath: string): Promise<ExcelJS.Worksheet> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(filePath);
+  const worksheet = workbook.getWorksheet('Export');
+  if (!worksheet) throw new Error('Export worksheet not found in the written file');
+  return worksheet;
+}
+
+describe('writeExport - invariant 1: one record produces exactly one row, always', () => {
+  it('each record produces exactly one data row, across multiple yielded pages', async () => {
+    const filePath = await tempFilePath('one-row.xlsx');
+    const propertyDefs = new Map([
+      ['firstname', FIRSTNAME_DEF],
+      ['amount', AMOUNT_DEF],
+    ]);
+
+    const result = await writeExport({
+      filePath,
+      records: pages([record('1', { firstname: 'Ada', amount: '42' })], [record('2', { firstname: 'Grace', amount: '7' })]),
+      properties: ['firstname', 'amount'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    expect(result.rowCount).toBe(2);
+
+    const ws = await readWorkbook(filePath);
+    expect(ws.rowCount).toBe(3); // 1 header + 2 data rows, one per record
+    expect(ws.getRow(2).getCell(1).value).toBe('Ada');
+    expect(ws.getRow(2).getCell(2).value).toBe(42);
+    expect(ws.getRow(3).getCell(1).value).toBe('Grace');
+    expect(ws.getRow(3).getCell(2).value).toBe(7);
+  });
+});
+
+describe('writeExport - invariant 2: columns follow the properties order exactly, never sorted', () => {
+  it('a reverse-alphabetical column order is preserved (spec fixture #10)', async () => {
+    const filePath = await tempFilePath('order.xlsx');
+    const propertyDefs = new Map([
+      ['phone', PHONE_DEF],
+      ['lastname', LASTNAME_DEF],
+      ['firstname', FIRSTNAME_DEF],
+      ['email', EMAIL_DEF],
+    ]);
+    const properties = ['phone', 'lastname', 'firstname', 'email']; // reverse-alphabetical
+
+    await writeExport({
+      filePath,
+      records: pages([
+        record('1', { phone: '0102030405', lastname: 'Lovelace', firstname: 'Ada', email: 'ada@example.com' }),
+      ]),
+      properties,
+      propertyDefs,
+      headerStyle: 'INTERNAL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    expect(rowValues(ws.getRow(1), 4)).toEqual(['phone', 'lastname', 'firstname', 'email']);
+    expect(rowValues(ws.getRow(2), 4)).toEqual(['0102030405', 'Lovelace', 'Ada', 'ada@example.com']);
+  });
+});
+
+describe('writeExport - invariant 3: dates are Excel dates, numbers are numbers, text is text', () => {
+  it('each cell has the correct ExcelJS value type after a real write/read round trip', async () => {
+    const filePath = await tempFilePath('types.xlsx');
+    const propertyDefs = new Map([
+      ['firstname', FIRSTNAME_DEF],
+      ['amount', AMOUNT_DEF],
+      ['closedate', CLOSEDATE_DEF],
+    ]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { firstname: 'Ada', amount: '1234.56', closedate: '2026-03-15T00:00:00.000Z' })]),
+      properties: ['firstname', 'amount', 'closedate'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const row = ws.getRow(2);
+
+    expect(row.getCell(1).type).toBe(ExcelJS.ValueType.String);
+    expect(row.getCell(1).value).toBe('Ada');
+
+    expect(row.getCell(2).type).toBe(ExcelJS.ValueType.Number);
+    expect(row.getCell(2).value).toBe(1234.56);
+
+    expect(row.getCell(3).type).toBe(ExcelJS.ValueType.Date);
+    expect(row.getCell(3).value).toBeInstanceOf(Date);
+    expect((row.getCell(3).value as Date).getTime()).toBe(new Date('2026-03-15T00:00:00.000Z').getTime());
+  });
+});
+
+describe('writeExport - invariant 4: no cell contains null, undefined, NaN, or [object Object]', () => {
+  it('a null property value produces a blank cell, never the literal text "null"', async () => {
+    const filePath = await tempFilePath('null-value.xlsx');
+    const propertyDefs = new Map([['phone', PHONE_DEF]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { phone: null })]),
+      properties: ['phone'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const cell = ws.getRow(2).getCell(1);
+    expect(cell.type).toBe(ExcelJS.ValueType.Null);
+    expect(cell.value).toBeNull();
+  });
+
+  it('an unparseable number produces a blank cell, never the literal text "NaN"', async () => {
+    const filePath = await tempFilePath('nan-value.xlsx');
+    const propertyDefs = new Map([['amount', AMOUNT_DEF]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { amount: 'n/a' })]),
+      properties: ['amount'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const cell = ws.getRow(2).getCell(1);
+    expect(cell.type).toBe(ExcelJS.ValueType.Null);
+    expect(cell.value).toBeNull();
+  });
+});
+
+describe('writeExport - invariant 5: the file opens without a repair prompt', () => {
+  it('a 40000-character property value is truncated cleanly and the file re-reads intact (spec fixture #8)', async () => {
+    const filePath = await tempFilePath('huge-value.xlsx');
+    const propertyDefs = new Map([
+      ['firstname', FIRSTNAME_DEF],
+      ['message', MESSAGE_DEF],
+    ]);
+    const hugeValue = 'x'.repeat(40000);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { firstname: 'Ada', message: hugeValue })]),
+      properties: ['firstname', 'message'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    // Re-reading with an independent ExcelJS.Workbook instance without
+    // throwing, and finding an intact, correctly-truncated cell plus an
+    // unaffected neighbour, is the practical proxy for "opens without a
+    // repair prompt": a malformed cell (e.g. from bad truncation) would
+    // corrupt the row or break the reader outright.
+    const ws = await readWorkbook(filePath);
+    const text = ws.getRow(2).getCell(2).value as string;
+    expect(text.length).toBeLessThanOrEqual(32767); // Excel's hard cell limit
+    expect(text.length).toBe(32764); // sanitizeCell: truncate to 32760 + " […]"
+    expect(text.endsWith(ELLIPSIS_SUFFIX)).toBe(true);
+    expect(ws.getRow(2).getCell(1).value).toBe('Ada'); // neighbour cell unaffected
+  });
+});
+
+describe('writeExport - A: extra always-returned keys never add columns or change order (FINDINGS section 10)', () => {
+  it('createdate, hs_object_id and lastmodifieddate are present on the record but not requested, and are ignored', async () => {
+    const filePath = await tempFilePath('extra-keys.xlsx');
+    const propertyDefs = new Map([
+      ['firstname', FIRSTNAME_DEF],
+      ['email', EMAIL_DEF],
+    ]);
+
+    await writeExport({
+      filePath,
+      records: pages([
+        record('1', {
+          firstname: 'Ada',
+          email: 'ada@example.com',
+          createdate: '2026-01-01T00:00:00.000Z',
+          hs_object_id: '123456',
+          lastmodifieddate: '2026-01-02T00:00:00.000Z',
+        }),
+      ]),
+      properties: ['firstname', 'email'],
+      propertyDefs,
+      headerStyle: 'INTERNAL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    expect(ws.actualColumnCount).toBe(2);
+    expect(rowValues(ws.getRow(1), 2)).toEqual(['firstname', 'email']);
+    expect(rowValues(ws.getRow(2), 2)).toEqual(['Ada', 'ada@example.com']);
+  });
+});
+
+describe('writeExport - B: the real multi-line fixture stays one row, newlines preserved, wrapText set (FINDINGS section 9)', () => {
+  it('three lines joined by bare LF produce one data row with wrapText on the cell', async () => {
+    const filePath = await tempFilePath('multiline.xlsx');
+    const propertyDefs = new Map([['message', MESSAGE_DEF]]);
+    const raw =
+      'Premi' + E_ACUTE + 're ligne' + LF + 'Deuxi' + E_ACUTE + 'me ligne' + LF + 'Troisi' + E_ACUTE + 'me ligne';
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { message: raw })]),
+      properties: ['message'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    expect(ws.rowCount).toBe(2); // header + exactly one data row, despite two embedded newlines
+    const cell = ws.getRow(2).getCell(1);
+    expect(cell.value).toBe(raw);
+    expect((cell.value as string).split(LF)).toHaveLength(3);
+    expect(cell.alignment?.wrapText).toBe(true);
+  });
+});
+
+describe('writeExport - C: headerStyle controls which row data starts on', () => {
+  it('LABEL: row 1 is labels, data from row 2', async () => {
+    const filePath = await tempFilePath('header-label.xlsx');
+    const propertyDefs = new Map([['firstname', FIRSTNAME_DEF]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { firstname: 'Ada' })]),
+      properties: ['firstname'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    expect(ws.getRow(1).getCell(1).value).toBe('First Name');
+    expect(ws.getRow(2).getCell(1).value).toBe('Ada');
+    expect(ws.rowCount).toBe(2);
+  });
+
+  it('INTERNAL: row 1 is internal names, data from row 2', async () => {
+    const filePath = await tempFilePath('header-internal.xlsx');
+    const propertyDefs = new Map([['firstname', FIRSTNAME_DEF]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { firstname: 'Ada' })]),
+      properties: ['firstname'],
+      propertyDefs,
+      headerStyle: 'INTERNAL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    expect(ws.getRow(1).getCell(1).value).toBe('firstname');
+    expect(ws.getRow(2).getCell(1).value).toBe('Ada');
+    expect(ws.rowCount).toBe(2);
+  });
+
+  it('BOTH: row 1 labels, row 2 internal names, data from row 3', async () => {
+    const filePath = await tempFilePath('header-both.xlsx');
+    const propertyDefs = new Map([['firstname', FIRSTNAME_DEF]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { firstname: 'Ada' })]),
+      properties: ['firstname'],
+      propertyDefs,
+      headerStyle: 'BOTH',
+    });
+
+    const ws = await readWorkbook(filePath);
+    expect(ws.getRow(1).getCell(1).value).toBe('First Name');
+    expect(ws.getRow(2).getCell(1).value).toBe('firstname');
+    expect(ws.getRow(3).getCell(1).value).toBe('Ada');
+    expect(ws.rowCount).toBe(3);
+  });
+});
+
+describe('writeExport - D: association columns are appended after the primary columns, headers prefixed by the object name', () => {
+  it('a resolved association fills its columns; an unresolved one leaves them blank, not "undefined"', async () => {
+    const filePath = await tempFilePath('associations.xlsx');
+    const propertyDefs = new Map([['firstname', FIRSTNAME_DEF]]);
+    const associationSpec = { toObjectType: 'Company', columns: ['name', 'domain'] };
+    // lib/export/associations.ts's resolveAssociations already returns final
+    // per-record values keyed by the primary record id.
+    const associations = new Map([['1', { name: 'Acme Corp', domain: 'acme.com' }]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { firstname: 'Ada' }), record('2', { firstname: 'Grace' })]),
+      properties: ['firstname'],
+      propertyDefs,
+      headerStyle: 'INTERNAL',
+      associations,
+      associationSpec,
+    });
+
+    const ws = await readWorkbook(filePath);
+    expect(rowValues(ws.getRow(1), 3)).toEqual([
+      'firstname',
+      `Company ${MIDDLE_DOT} ${capitalize('name')}`,
+      `Company ${MIDDLE_DOT} ${capitalize('domain')}`,
+    ]);
+
+    // record '1' has a resolved association - its columns come after "firstname".
+    expect(rowValues(ws.getRow(2), 3)).toEqual(['Ada', 'Acme Corp', 'acme.com']);
+
+    // record '2' has no association - the primary column is unaffected, and
+    // the association columns are blank cells, not the text "undefined".
+    const row3 = ws.getRow(3);
+    expect(row3.getCell(1).value).toBe('Grace');
+    expect(row3.getCell(2).type).toBe(ExcelJS.ValueType.Null);
+    expect(row3.getCell(2).value).toBeNull();
+    expect(row3.getCell(3).type).toBe(ExcelJS.ValueType.Null);
+    expect(row3.getCell(3).value).toBeNull();
+  });
+});
+
+describe('writeExport - E: a property missing from the payload entirely yields an empty cell, not "undefined"', () => {
+  it('a requested property absent from record.properties (not even null) is a blank cell', async () => {
+    const filePath = await tempFilePath('missing-key.xlsx');
+    const propertyDefs = new Map([
+      ['firstname', FIRSTNAME_DEF],
+      ['email', EMAIL_DEF],
+    ]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { firstname: 'Ada' })]), // no "email" key at all
+      properties: ['firstname', 'email'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const row = ws.getRow(2);
+    expect(row.getCell(1).value).toBe('Ada');
+    expect(row.getCell(2).type).toBe(ExcelJS.ValueType.Null);
+    expect(row.getCell(2).value).toBeNull();
+  });
+});
+
+describe('writeExport - F: zero records still produces a file with headers only', () => {
+  it('an exhausted (empty) records iterable still writes the header row and no data rows', async () => {
+    const filePath = await tempFilePath('zero-records.xlsx');
+    const propertyDefs = new Map([['firstname', FIRSTNAME_DEF]]);
+
+    const result = await writeExport({
+      filePath,
+      records: noPages(),
+      properties: ['firstname'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    expect(result.rowCount).toBe(0);
+
+    const ws = await readWorkbook(filePath);
+    expect(ws.rowCount).toBe(1); // header only
+    expect(rowValues(ws.getRow(1), 1)).toEqual(['First Name']);
+  });
+});
+
+describe('writeExport - sanitisation (spec section 3) runs before type coercion (rule 6), not after', () => {
+  it('a control char followed by a leading "=" is sanitised BEFORE mapCell, so the exposed "=" still gets quoted', async () => {
+    // specs/05-EXPORT-ENGINE.md section 3: rule 2 (strip control chars) runs
+    // before rule 4 (quote a leading = + - @); rule 6 (type coercion, i.e.
+    // mapCell) is separate and comes last. Feeding mapCell the UNSANITISED
+    // raw value first would let it see a control char at position 0 -
+    // irrelevant for plain string/text, but the writer must not depend on
+    // that: it has to sanitise raw string values before mapCell, not after.
+    const filePath = await tempFilePath('sanitise-before-coerce.xlsx');
+    const propertyDefs = new Map([['firstname', FIRSTNAME_DEF]]);
+    const raw = String.fromCharCode(0x07) + '=SUM(1,1)'; // BEL, then a leading "="
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { firstname: raw })]),
+      properties: ['firstname'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const cell = ws.getRow(2).getCell(1);
+    // Strip the control char first (rule 2), which exposes "=" as the new
+    // leading character, THEN quote it (rule 4).
+    expect(cell.value).toBe("'=SUM(1,1)");
+  });
+
+  it('a control char before a number is stripped BEFORE type coercion, so the number survives (not lost to the NaN guard)', async () => {
+    // If mapCell ran on the unsanitised raw value, parseFloat(BEL + '42')
+    // would fail, and mapCell's own NaN guard would silently turn it into an
+    // empty cell - the "42" would be gone with no error. Sanitising the
+    // control character away first is what lets it parse at all.
+    const filePath = await tempFilePath('control-char-number.xlsx');
+    const propertyDefs = new Map([['amount', AMOUNT_DEF]]);
+    const raw = String.fromCharCode(0x07) + '42'; // BEL, then a plain number
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { amount: raw })]),
+      properties: ['amount'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const cell = ws.getRow(2).getCell(1);
+    expect(cell.type).toBe(ExcelJS.ValueType.Number);
+    expect(cell.value).toBe(42);
+  });
+
+  it('a negative number is not corrupted by the leading-character quote defence meant for text cells', async () => {
+    // Naively sanitising before coercion would turn "-5" into "'-5" (rule 4
+    // treats a leading "-" as a possible formula/injection attempt), and
+    // that quoted string then fails to parse as a number at all. Rule 4 only
+    // protects a cell that ends up as TEXT - a number cell is never
+    // formula-evaluable, so the writer undoes a quote IT added before
+    // handing the value to mapCell, letting "-5" parse as the number -5.
+    const filePath = await tempFilePath('negative-number.xlsx');
+    const propertyDefs = new Map([['amount', AMOUNT_DEF]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { amount: '-5' })]),
+      properties: ['amount'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const cell = ws.getRow(2).getCell(1);
+    expect(cell.type).toBe(ExcelJS.ValueType.Number);
+    expect(cell.value).toBe(-5);
+  });
+});

@@ -17,6 +17,7 @@ export const ErrorCode = {
   // export
   SEARCH_CAP_EXCEEDED: 'SEARCH_CAP_EXCEEDED',
   TIMEOUT: 'TIMEOUT',
+  LINK_EXPIRED: 'LINK_EXPIRED',
 
   // generic
   VALIDATION_FAILED: 'VALIDATION_FAILED',

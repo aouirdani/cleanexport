@@ -22,8 +22,20 @@ interface HubSpotProperty {
   type: string;
   fieldType: string;
   options?: unknown;
+  description?: string;
+  calculated?: boolean;
+  hidden?: boolean;
 }
 
+/**
+ * Additive over the shape documented in specs/06-API-CONTRACT.md
+ * (`{ name, label, type, fieldType, options?, isSystem }`) - `description`,
+ * `calculated` and `hidden` are already present on the raw HubSpot payload
+ * PropertyCache stores (recon/FINDINGS.md section 13's table), so this is
+ * just widening what the route already reads from it, not a new HubSpot
+ * call. specs/07-TASKS.md T17's property picker needs them: description as
+ * tooltip text, calculated/hidden marked visually.
+ */
 function toResponseShape(properties: HubSpotProperty[]) {
   return properties.map((p) => ({
     name: p.name,
@@ -32,6 +44,9 @@ function toResponseShape(properties: HubSpotProperty[]) {
     fieldType: p.fieldType,
     options: p.options,
     isSystem: p.name.startsWith('hs_'),
+    description: p.description ?? null,
+    calculated: p.calculated ?? false,
+    hidden: p.hidden ?? false,
   }));
 }
 
