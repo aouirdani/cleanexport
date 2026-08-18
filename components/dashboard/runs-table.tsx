@@ -62,31 +62,35 @@ export function RunsTable({ initialRuns, exportId }: { initialRuns: RunRow[]; ex
 
   if (runs.length === 0) {
     return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
-        No runs yet. Runs you trigger manually or on a schedule will show up here.
-      </p>
+      <div className="rounded-xl border border-border bg-card py-10 text-center">
+        <p className="text-sm text-muted-foreground">
+          No runs yet. Runs you trigger manually or on a schedule will show up here.
+        </p>
+      </div>
     )
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-left text-sm">
-        <thead>
-          <tr className="border-b border-border text-xs text-muted-foreground">
-            <th className="py-2 pr-4 font-medium">Export</th>
-            <th className="py-2 pr-4 font-medium">Status</th>
-            <th className="py-2 pr-4 font-medium">Started</th>
-            <th className="py-2 pr-4 font-medium">Rows</th>
-            <th className="py-2 pr-4 font-medium">Trigger</th>
-            <th className="py-2 pr-0 font-medium text-right">File</th>
-          </tr>
-        </thead>
-        <tbody>
-          {runs.map((run) => (
-            <RunRowView key={run.id} run={run} />
-          ))}
-        </tbody>
-      </table>
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-border text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+              <th className="py-2.5 pr-4 pl-5 font-medium">Export</th>
+              <th className="py-2.5 pr-4 font-medium">Status</th>
+              <th className="py-2.5 pr-4 font-medium">Started</th>
+              <th className="py-2.5 pr-4 font-medium">Rows</th>
+              <th className="py-2.5 pr-4 font-medium">Trigger</th>
+              <th className="py-2.5 pr-5 font-medium text-right">File</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((run) => (
+              <RunRowView key={run.id} run={run} />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -94,19 +98,21 @@ export function RunsTable({ initialRuns, exportId }: { initialRuns: RunRow[]; ex
 function RunRowView({ run }: { run: RunRow }) {
   return (
     <>
-      <tr className="border-b border-border/60 align-top last:border-0">
-        <td className="py-3 pr-4 font-medium">{run.exportName}</td>
+      <tr className="border-b border-border/60 align-top transition-colors last:border-0 hover:bg-muted/40">
+        <td className="py-3 pr-4 pl-5 text-[13px] font-medium">{run.exportName}</td>
         <td className="py-3 pr-4">
           <RunStatusBadge status={run.status} />
         </td>
-        <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground">
+        <td className="py-3 pr-4 tabular-nums whitespace-nowrap text-muted-foreground">
           {formatDateTime(run.startedAt ?? run.createdAt)}
         </td>
-        <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground">{formatRowCount(run.rowCount)}</td>
+        <td className="py-3 pr-4 font-mono text-[13px] tabular-nums whitespace-nowrap text-muted-foreground">
+          {formatRowCount(run.rowCount)}
+        </td>
         <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground">
           {run.trigger === "SCHEDULE" ? "Schedule" : "Manual"}
         </td>
-        <td className="py-3 pr-0 text-right">
+        <td className="py-3 pr-5 text-right">
           {run.status === "SUCCESS" && (
             <Button
               size="sm"
@@ -133,7 +139,7 @@ function RunRowView({ run }: { run: RunRow }) {
 function RunErrorRow({ message }: { message: string }) {
   return (
     <tr className="border-b border-border/60 last:border-0">
-      <td colSpan={6} className="pb-3 pr-4">
+      <td colSpan={6} className="px-5 pb-3">
         <p className="rounded-md bg-destructive/5 px-3 py-2 text-xs whitespace-pre-wrap text-destructive">
           {message}
         </p>

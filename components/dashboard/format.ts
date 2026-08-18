@@ -31,3 +31,21 @@ export function formatFileSize(bytes: number | null): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+export type ScheduleState = "MANUAL" | "SCHEDULED" | "INVALID"
+
+/**
+ * A schedule is only really "Scheduled" when it has a real next-run time to
+ * show for it. `scheduleCron` set but `nextRunAt` null means either a
+ * pre-validation legacy row (scheduleCron held a bare word like "weekly",
+ * not a cron expression - see lib/schedulePresets.ts's LEGACY_FREQUENCY_WORDS
+ * and scripts/backfill-invalid-schedules.mts) or some other write path that
+ * skipped computing it. Either way, the dashboard must not call that
+ * "Manual only" - the export wasn't left manual on purpose - and must not
+ * call it "Scheduled" either, since export.schedule.tick will never pick up
+ * a row with no nextRunAt. It gets its own, honest third state instead.
+ */
+export function describeSchedule(scheduleCron: string | null, nextRunAt: Date | string | null): ScheduleState {
+  if (!scheduleCron) return "MANUAL"
+  return nextRunAt ? "SCHEDULED" : "INVALID"
+}

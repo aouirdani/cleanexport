@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { encrypt } from '@/lib/crypto';
 import { createSession, consumeStateCookie } from '@/lib/session';
 import { exchangeCodeForTokens, introspect, expiresAtFrom, getScopes } from '@/lib/hubspot/oauth';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,8 +69,11 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.redirect(new URL('/dashboard', req.nextUrl.origin));
   } catch (err) {
-    // Never log the error object wholesale: the request body we sent contained a secret.
-    console.error('[oauth/callback] failed:', err instanceof Error ? err.message : 'unknown');
+    // Never log the error object wholesale: the request body we sent contained
+    // a secret. logger.error still runs everything through lib/scrub.ts, but
+    // passing only the message (not `err` itself) means there's nothing for
+    // that scrub to need to catch here in the first place.
+    logger.error('oauth callback failed', { message: err instanceof Error ? err.message : 'unknown' });
     return fail(req, 'exchange_failed');
   }
 }

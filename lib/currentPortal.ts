@@ -13,6 +13,7 @@
 import { cache } from 'react';
 import { prisma } from '@/lib/db';
 import { readSession } from '@/lib/session';
+import type { SubStatus } from '@/lib/generated/prisma/client';
 
 export interface CurrentPortal {
   id: string;
@@ -30,8 +31,15 @@ export interface CurrentUser {
   lastName: string | null;
 }
 
+/** Just what the trial-countdown/billing banner needs (components/dashboard/billing-banner.tsx) - specs/07-TASKS.md T20. */
+export interface CurrentSubscription {
+  status: SubStatus;
+  trialEndsAt: Date | null;
+  cancelAtPeriodEnd: boolean;
+}
+
 export type CurrentSessionResult =
-  | { ok: true; portal: CurrentPortal; user: CurrentUser | null }
+  | { ok: true; portal: CurrentPortal; user: CurrentUser | null; subscription: CurrentSubscription | null }
   | { ok: false; reason: 'NOT_AUTHENTICATED' | 'SESSION_INVALID' };
 
 export const getCurrentSession = cache(async (): Promise<CurrentSessionResult> => {
@@ -52,9 +60,15 @@ export const getCurrentSession = cache(async (): Promise<CurrentSessionResult> =
     select: { id: true, email: true, firstName: true, lastName: true },
   });
 
+  const subscription = await prisma.subscription.findUnique({
+    where: { portalId: session.portalId },
+    select: { status: true, trialEndsAt: true, cancelAtPeriodEnd: true },
+  });
+
   return {
     ok: true,
     portal: { ...portal, hubspotPortalId: portal.hubspotPortalId.toString() },
     user,
+    subscription,
   };
 });

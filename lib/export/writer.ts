@@ -16,7 +16,7 @@
 import ExcelJS from 'exceljs';
 import type { HubSpotRecord } from '@/lib/export/fetch';
 import { mapCell, type PropertyDef } from '@/lib/export/typeMap';
-import { sanitizeCell } from '@/lib/export/sanitize';
+import { sanitizeCell, sanitizeRawForCoercion } from '@/lib/export/sanitize';
 
 const HEADER_FILL_ARGB = 'FF2E3B4E';
 const HEADER_FONT_ARGB = 'FFFFFFFF';
@@ -43,31 +43,6 @@ function capitalize(value: string): string {
 
 function columnWidth(headerLength: number): number {
   return Math.min(Math.max(headerLength, MIN_COLUMN_WIDTH), MAX_COLUMN_WIDTH);
-}
-
-/**
- * Prepares a raw string for mapCell (spec section 3, rule 6: type coercion
- * runs LAST, after sanitisation). Runs sanitizeCell first so control
- * characters are stripped and line endings normalised before mapCell parses
- * the value - otherwise a stray control character (e.g. a raw value of
- * String.fromCharCode(0x07) + '42') breaks parseFloat and the number is
- * silently lost to the NaN guard.
- *
- * Rule 4 (quote a leading = + - @) is a defence for TEXT cells against
- * formula injection - it is meaningless for a cell that mapCell is about to
- * turn into a number, date, or boolean, and actively harmful: "-5" would
- * become "'-5", which then fails to parse as a number at all. So a quote
- * ADDED by this pass is undone before coercion; mapCell always sees the
- * value with its original leading character. If the coerced result is
- * still a string, the existing post-coercion `sanitizeCell(mapped.value)`
- * call below re-applies rule 4 to it - injection defence on the actual text
- * that ends up in the cell is unaffected.
- */
-function sanitizeRawForCoercion(raw: string): string {
-  const sanitized = sanitizeCell(raw);
-  const text = typeof sanitized === 'string' ? sanitized : raw; // sanitizeCell(string) always returns a string
-  if (text.startsWith("'") && !raw.startsWith("'")) return text.slice(1);
-  return text;
 }
 
 function applyHeaderRowStyle(row: ExcelJS.Row, columnCount: number): void {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeCell } from '@/lib/export/sanitize';
+import { sanitizeCell, sanitizeRawForCoercion } from '@/lib/export/sanitize';
 
 // Ordered rules under test (specs/05-EXPORT-ENGINE.md section 3):
 //   1. null | undefined            -> null (empty cell)
@@ -232,5 +232,41 @@ describe('sanitizeCell - non-string inputs (rule 1 boundary, unknown input type)
     for (const forbidden of FORBIDDEN_STRINGS) {
       expect(result).not.toBe(forbidden);
     }
+  });
+});
+
+// sanitizeRawForCoercion is the shared seam lib/export/writer.ts and
+// lib/exportPreview.ts both call before mapCell - a single implementation,
+// tested once here, rather than one copy per caller (see this function's
+// own doc comment for the full rationale).
+describe('sanitizeRawForCoercion - prepares a raw string for type coercion (rule 6)', () => {
+  it('strips control characters and normalises line endings exactly like sanitizeCell', () => {
+    expect(sanitizeRawForCoercion('a' + NUL + 'b')).toBe('ab');
+    expect(sanitizeRawForCoercion('a' + CR + LF + 'b')).toBe('a' + LF + 'b');
+  });
+
+  it('undoes rule 4\'s leading-quote injection defence, so a numeric-looking value still starts with its original character', () => {
+    // sanitizeCell alone would turn "-5" into "'-5" (rule 4) - fine for a TEXT
+    // cell, but fatal for a value about to be parsed as a number.
+    expect(sanitizeRawForCoercion('-5')).toBe('-5');
+    expect(sanitizeRawForCoercion('+1234')).toBe('+1234');
+    expect(sanitizeRawForCoercion('=SUM(1,1)')).toBe('=SUM(1,1)');
+    expect(sanitizeRawForCoercion('@mention')).toBe('@mention');
+  });
+
+  it('leaves a value that ALREADY started with a quote untouched - only an ADDED quote is undone', () => {
+    expect(sanitizeRawForCoercion("'already-quoted")).toBe("'already-quoted");
+  });
+
+  it('a value with no leading injection character is unaffected beyond the usual sanitisation', () => {
+    expect(sanitizeRawForCoercion('1234.56')).toBe('1234.56');
+    expect(sanitizeRawForCoercion('2026-03-15')).toBe('2026-03-15');
+  });
+
+  it('still truncates an over-length value (rule 5 is not undone, only rule 4 is)', () => {
+    const raw = 'x'.repeat(32768);
+    const result = sanitizeRawForCoercion(raw);
+    expect(result.length).toBe(32764);
+    expect(result.endsWith(ELLIPSIS_SUFFIX)).toBe(true);
   });
 });

@@ -13,6 +13,7 @@ import {
   type PickerProperty,
 } from "@/lib/propertyPicker"
 import { OBJECT_TYPE_SLUG, type ObjectTypeValue } from "@/components/exports/types"
+import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -200,7 +201,7 @@ function PropertyPickerInner({
               aria-multiselectable="true"
               aria-label={`Available ${itemNoun}`}
               tabIndex={0}
-              className="h-80 overflow-y-auto rounded-lg border border-border"
+              className="h-80 overflow-y-auto rounded-lg border border-border bg-card"
               onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
             >
               {available.length === 0 ? (
@@ -232,13 +233,26 @@ function PropertyPickerInner({
               Selected ({selected.length}/{cap})
             </span>
           </div>
+          <div
+            role="progressbar"
+            aria-hidden
+            aria-valuenow={selected.length}
+            aria-valuemin={0}
+            aria-valuemax={cap}
+            className="h-1 overflow-hidden rounded-full bg-muted"
+          >
+            <div
+              className={cn("h-full rounded-full transition-[width] duration-200", atCap ? "bg-destructive" : "bg-primary")}
+              style={{ width: `${Math.min(100, (selected.length / cap) * 100)}%` }}
+            />
+          </div>
           {atCap && (
             <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
               You&apos;ve reached the {cap}-property limit. More columns than that produce a slow, unusable
               file - remove one to add another.
             </p>
           )}
-          <ol className="h-80 overflow-y-auto rounded-lg border border-border" aria-label={`Selected ${itemNoun}, in column order`}>
+          <ol className="h-80 overflow-y-auto rounded-lg border border-border bg-card" aria-label={`Selected ${itemNoun}, in column order`}>
             {selectedDetails.length === 0 ? (
               <p className="p-3 text-sm text-muted-foreground">
                 Nothing selected yet. Pick properties on the left - they&apos;ll appear here in column order.
@@ -293,14 +307,20 @@ function PropertyRow({
   style?: React.CSSProperties
 }) {
   return (
-    <div style={style} className="group/row relative flex items-center border-b border-border/60 last:border-0">
+    <div
+      style={style}
+      className={cn(
+        "group/row relative flex items-center border-b border-border/60 last:border-0",
+        checked && "bg-primary/5",
+      )}
+    >
       <button
         type="button"
         role="option"
         aria-selected={checked}
         disabled={disabled}
         onClick={onToggle}
-        className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
       >
         <input
           type="checkbox"
@@ -362,9 +382,9 @@ function SelectedRow({
         e.preventDefault();
         onDropOn();
       }}
-      className="flex items-center gap-2 border-b border-border/60 px-2.5 py-2 text-sm last:border-0"
+      className="flex items-center gap-2 border-b border-border/60 px-2.5 py-2 text-sm transition-colors last:border-0 hover:bg-muted/50"
     >
-      <span className="w-5 shrink-0 cursor-grab text-muted-foreground select-none" aria-hidden title="Drag to reorder">
+      <span className="w-5 shrink-0 cursor-grab text-center text-muted-foreground select-none" aria-hidden title="Drag to reorder">
         ⠿
       </span>
       <span className="min-w-0 flex-1 truncate">

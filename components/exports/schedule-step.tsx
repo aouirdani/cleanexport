@@ -2,17 +2,9 @@
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-
-const PRESETS: { label: string; cron: string | null }[] = [
-  { label: "Manual only", cron: null },
-  { label: "Daily at 6am", cron: "0 6 * * *" },
-  { label: "Weekly, Monday 6am", cron: "0 6 * * 1" },
-  { label: "Monthly, 1st at 6am", cron: "0 6 1 * *" },
-]
+import { SCHEDULE_PRESETS } from "@/lib/schedulePresets"
 
 export function ScheduleStep({
-  name,
-  onNameChange,
   scheduleCron,
   onScheduleCronChange,
   scheduleTz,
@@ -20,8 +12,6 @@ export function ScheduleStep({
   recipients,
   onRecipientsChange,
 }: {
-  name: string
-  onNameChange: (next: string) => void
   scheduleCron: string | null
   onScheduleCronChange: (next: string | null) => void
   scheduleTz: string
@@ -31,21 +21,10 @@ export function ScheduleStep({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="export-name">Export name</Label>
-        <Input
-          id="export-name"
-          value={name}
-          onChange={(e) => onNameChange(e.target.value)}
-          placeholder="e.g. Weekly deals for the sales team"
-          maxLength={120}
-        />
-      </div>
-
       <fieldset className="flex flex-col gap-1.5">
         <legend className="text-sm font-medium">Schedule</legend>
         <div role="radiogroup" aria-label="Schedule" className="flex flex-wrap gap-2">
-          {PRESETS.map((preset) => (
+          {SCHEDULE_PRESETS.map((preset) => (
             <label
               key={preset.label}
               className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5"

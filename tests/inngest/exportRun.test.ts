@@ -593,3 +593,96 @@ describe('inngest/email.ts sendSuccessEmail - requirement 6: the 8 MB attachment
     expect(payload.html).toContain('9.0 MB');
   });
 });
+
+// specs/07-TASKS.md T22, THE TEST THAT MATTERS #2: "a test that captures
+// logger output during an export run with a known token value and asserts
+// that value never appears." This runs the REAL exportRunHandler/
+// exportRunOnFailure (not a mock of them) against a portal whose
+// accessTokenEnc/refreshTokenEnc decrypt to two distinctive, known-in-advance
+// plaintext strings, spies on every console method lib/logger.ts can write
+// to, and asserts neither string appears in ANY captured call - not just the
+// lines this file's own logger.info/logger.error calls happen to produce
+// today. If a future change ever logged the portal row or the HubSpot client
+// wholesale, this is what would catch it.
+describe('THE TEST THAT MATTERS - no decrypted token ever reaches a log line', () => {
+  const KNOWN_ACCESS_TOKEN = 'KNOWN-SECRET-ACCESS-TOKEN-9f3e7b1c';
+  const KNOWN_REFRESH_TOKEN = 'KNOWN-SECRET-REFRESH-TOKEN-2a8d4f60';
+
+  function spyOnConsole() {
+    return {
+      log: vi.spyOn(console, 'log').mockImplementation(() => undefined),
+      warn: vi.spyOn(console, 'warn').mockImplementation(() => undefined),
+      error: vi.spyOn(console, 'error').mockImplementation(() => undefined),
+      debug: vi.spyOn(console, 'debug').mockImplementation(() => undefined),
+    };
+  }
+
+  function assertNoTokenLeak(spies: ReturnType<typeof spyOnConsole>) {
+    let inspected = 0;
+    for (const spy of Object.values(spies)) {
+      for (const call of spy.mock.calls) {
+        inspected++;
+        const text = call.map((arg) => String(arg)).join(' ');
+        expect(text).not.toContain(KNOWN_ACCESS_TOKEN);
+        expect(text).not.toContain(KNOWN_REFRESH_TOKEN);
+      }
+    }
+    return inspected;
+  }
+
+  it('a successful run never logs the decrypted access or refresh token', async () => {
+    process.env.LOG_LEVEL = 'debug';
+    const fakePrisma = makeFakePrisma({
+      portal: makePortal({
+        accessTokenEnc: encrypt(KNOWN_ACCESS_TOKEN),
+        refreshTokenEnc: encrypt(KNOWN_REFRESH_TOKEN),
+      }),
+      exportDef: makeExportDef(),
+      run: makeRun(),
+    });
+    await setPrisma(fakePrisma);
+    vi.stubGlobal('fetch', makeFakeFetch({ records: [{ id: 'c1', properties: { firstname: 'Ada' } }] }));
+    tempFilesToClean.push(join(tmpdir(), 'cleanexport-run-run-1.xlsx'));
+
+    const spies = spyOnConsole();
+    const result = await exportRunHandler({ event: RUN_EVENT, step: makeStep() });
+
+    expect(result.rowCount).toBe(1); // the run genuinely completed - this isn't a test that skipped the pipeline
+    const inspected = assertNoTokenLeak(spies);
+    expect(inspected).toBeGreaterThan(0); // and it DID log something - a vacuous pass (no log lines at all) would prove nothing
+  });
+
+  it('a failed run - through mark-failed, the failure email, and onFailure - never logs either token', async () => {
+    process.env.LOG_LEVEL = 'debug';
+    const fakePrisma = makeFakePrisma({
+      portal: makePortal({
+        accessTokenEnc: encrypt(KNOWN_ACCESS_TOKEN),
+        refreshTokenEnc: encrypt(KNOWN_REFRESH_TOKEN),
+        tokenExpiresAt: new Date(Date.now() + 60_000), // inside the refresh margin - forces a refresh attempt using the known refresh token
+      }),
+      exportDef: makeExportDef(),
+      run: makeRun(),
+    });
+    await setPrisma(fakePrisma);
+    vi.stubGlobal(
+      'fetch',
+      makeFakeFetch({
+        records: [],
+        onRequest: (url) => (url.includes('/oauth/v1/token') ? jsonRes(400, { status: 'BAD_REFRESH_TOKEN', message: 'revoked' }) : null),
+      }),
+    );
+
+    const spies = spyOnConsole();
+    let caught: unknown;
+    try {
+      await exportRunHandler({ event: RUN_EVENT, step: makeStep() });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(NonRetriableError); // confirms the refresh/revocation path actually ran
+
+    await exportRunOnFailure({ event: { data: { event: RUN_EVENT } }, error: caught as Error, step: makeStep() });
+
+    assertNoTokenLeak(spies);
+  });
+});

@@ -5,13 +5,23 @@
  *   1. referencedObjectType (section 4.0) - a property that references another
  *      object is an identifier, and its declared `type` is misleading. Checked
  *      BEFORE the type/fieldType table below, not as a special case inside it.
- *   2. a table-driven switch on `type` (mapByType) - type decides value semantics.
- *   3. `fieldType` never drives that switch. It only decides wrapText (mapString)
- *      and multi-select splitting (mapEnumeration), inside the branch that `type`
- *      already selected.
+ *   2. a table-driven dispatch on `type` (DISPATCH_TABLE / mapByType) - type
+ *      decides value semantics.
+ *   3. `fieldType` never drives that dispatch. It only decides wrapText
+ *      (mapString) and multi-select splitting (mapEnumeration), inside the
+ *      branch that `type` already selected.
  *
  * Every value from HubSpot arrives as string | null (recon/FINDINGS.md section 3).
  * This function parses, it does not merely format.
+ *
+ * `columnValueType` answers a different, narrower question than `mapCell`:
+ * not "what value does this raw string become" but "what KIND of value will
+ * this property's column always be" (text/number/date/datetime/boolean) -
+ * needed by callers (lib/exportPreview.ts) that show a column's type without
+ * necessarily having a sample value in hand. It is deliberately NOT a second,
+ * independently-maintained copy of the dispatch table: both it and
+ * `mapByType` read `DISPATCH_TABLE`, the one place section 4.0/4's rules are
+ * encoded, so a rule added there is automatically correct for both.
  */
 
 export interface PropertyDef {
@@ -96,14 +106,33 @@ function parseValidDate(raw: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function mapByType(raw: string, def: PropertyDef): MappedCell {
-  switch (def.type) {
-    case 'string':
-    case 'phone_number':
-      // Never numeric - leading zeros and "+" matter (phonenumber fieldType).
-      return mapString(raw, def);
+/** What kind of value a property's column always holds - see the file header. */
+export type PropertyValueKind = 'text' | 'number' | 'date' | 'datetime' | 'boolean';
 
-    case 'number': {
+interface DispatchRule {
+  matches: (def: PropertyDef) => boolean;
+  /** A function, not a constant: 'enumeration' resolves to 'boolean' or 'text' depending on fieldType. */
+  kind: (def: PropertyDef) => PropertyValueKind;
+  produce: (raw: string, def: PropertyDef) => MappedCell;
+}
+
+/**
+ * specs/05-EXPORT-ENGINE.md section 4's table, as data - evaluated top to
+ * bottom, first match wins, exactly like the switch statement it replaced.
+ * `mapByType` and `columnValueType` are both thin readers of this table, so
+ * a new case only needs to be added here once.
+ */
+const DISPATCH_TABLE: DispatchRule[] = [
+  {
+    // Never numeric - leading zeros and "+" matter (phonenumber fieldType).
+    matches: (def) => def.type === 'string' || def.type === 'phone_number',
+    kind: () => 'text',
+    produce: mapString,
+  },
+  {
+    matches: (def) => def.type === 'number',
+    kind: () => 'number',
+    produce: (raw, def) => {
       // calculation_* fieldTypes are read-only computed numbers; they export
       // the same way as a plain number.
       const value = parseFiniteNumber(raw);
@@ -113,36 +142,61 @@ function mapByType(raw: string, def: PropertyDef): MappedCell {
       // per-column numFmt). The NaN guard above still applies either way.
       const numFmt = def.showCurrencySymbol ? CURRENCY_NUMBER_FMT : NUMBER_FMT;
       return { value, numFmt };
-    }
-
-    case 'datetime': {
+    },
+  },
+  {
+    matches: (def) => def.type === 'datetime',
+    kind: () => 'datetime',
+    produce: (raw) => {
       // fieldType is irrelevant here (date or any calculation_*): a datetime
       // keeps its time-of-day, unlike the date-only case below.
       const value = parseValidDate(raw);
       return value === null ? { value: null } : { value, numFmt: DATETIME_FMT };
-    }
-
-    case 'date': {
+    },
+  },
+  {
+    matches: (def) => def.type === 'date',
+    kind: () => 'date',
+    produce: (raw) => {
       const value = parseValidDate(raw);
       return value === null ? { value: null } : { value, numFmt: DATE_FMT };
-    }
+    },
+  },
+  {
+    matches: (def) => def.type === 'bool',
+    kind: () => 'boolean',
+    produce: (raw) => ({ value: raw === 'true' }),
+  },
+  {
+    matches: (def) => def.type === 'enumeration',
+    // DECISION 2: booleancheckbox is a real Excel boolean; every other
+    // enumeration fieldType resolves to a label, i.e. text.
+    kind: (def) => (def.fieldType === 'booleancheckbox' ? 'boolean' : 'text'),
+    produce: mapEnumeration,
+  },
+  {
+    // DECISION 3: text fallback, no special case - these are internal
+    // pointers with no user-readable value.
+    matches: (def) => def.type === 'object_coordinates',
+    kind: () => 'text',
+    produce: (raw) => ({ value: raw }),
+  },
+  {
+    // Unknown or unmapped type: text, never throw. A new HubSpot property
+    // type must never break an export. Always matches - must stay last.
+    matches: () => true,
+    kind: () => 'text',
+    produce: (raw) => ({ value: raw }),
+  },
+];
 
-    case 'bool':
-      return { value: raw === 'true' };
+function findRule(def: PropertyDef): DispatchRule {
+  // The final rule always matches, so this is never undefined.
+  return DISPATCH_TABLE.find((rule) => rule.matches(def))!;
+}
 
-    case 'enumeration':
-      return mapEnumeration(raw, def);
-
-    case 'object_coordinates':
-      // DECISION 3: text fallback, no special case - these are internal
-      // pointers with no user-readable value.
-      return { value: raw };
-
-    default:
-      // Unknown or unmapped type: text, never throw. A new HubSpot property
-      // type must never break an export.
-      return { value: raw };
-  }
+function mapByType(raw: string, def: PropertyDef): MappedCell {
+  return findRule(def).produce(raw, def);
 }
 
 export function mapCell(raw: unknown, def: PropertyDef, ctx?: MapCellContext): MappedCell {
@@ -164,4 +218,16 @@ export function mapCell(raw: unknown, def: PropertyDef, ctx?: MapCellContext): M
 
   // 2. type/fieldType table.
   return mapByType(rawValue, def);
+}
+
+/**
+ * The type/fieldType half of `mapCell`'s own dispatch (section 4.0/4),
+ * without needing a raw value: `undefined` (property unknown/skipped) and a
+ * `referencedObjectType` both mirror mapCell's identical short-circuits
+ * before it ever reaches DISPATCH_TABLE.
+ */
+export function columnValueType(def: PropertyDef | undefined): PropertyValueKind {
+  if (!def) return 'text'; // unknown/skipped property - same text fallback as the table's default rule
+  if (def.referencedObjectType) return 'text'; // identifiers, incl. a resolved OWNER name, are always text
+  return findRule(def).kind(def);
 }

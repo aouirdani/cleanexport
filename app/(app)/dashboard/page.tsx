@@ -9,10 +9,13 @@ import { redirect } from "next/navigation"
 import { getCurrentSession } from "@/lib/currentPortal"
 import { getLatestRunPerExport } from "@/lib/runs"
 import { prisma } from "@/lib/db"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { RunStatusBadge, type RunStatusValue } from "@/components/dashboard/run-status-badge"
-import { formatDateTime } from "@/components/dashboard/format"
+import { RunNowButton } from "@/components/dashboard/run-now-button"
+import { formatDateTime, describeSchedule } from "@/components/dashboard/format"
+import { Badge } from "@/components/ui/badge"
+import { Table2, Plus, TriangleAlert } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
@@ -30,7 +33,7 @@ export default async function DashboardPage() {
   const exports = await prisma.exportDefinition.findMany({
     where: { portalId: current.portal.id, isActive: true },
     orderBy: { createdAt: "desc" },
-    select: { id: true, name: true, objectType: true, scheduleCron: true, scheduleTz: true },
+    select: { id: true, name: true, objectType: true, scheduleCron: true, scheduleTz: true, nextRunAt: true },
   });
 
   const latestRuns = await getLatestRunPerExport(
@@ -40,36 +43,56 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          {exports.length === 0
-            ? "Nothing exported yet."
-            : `${exports.length} export${exports.length === 1 ? "" : "s"} configured.`}
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-[-0.015em]">Dashboard</h1>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            {exports.length === 0
+              ? "Nothing exported yet."
+              : `${exports.length} export${exports.length === 1 ? "" : "s"} configured.`}
+          </p>
+        </div>
+        {exports.length > 0 && (
+          <Button size="sm" render={<Link href="/dashboard/exports/new" />} nativeButton={false}>
+            <Plus aria-hidden />
+            New export
+          </Button>
+        )}
       </div>
 
       {exports.length === 0 ? (
         <EmptyExportsState />
       ) : (
-        <div className="flex flex-col gap-3">
-          {exports.map((exportDef) => {
-            const latest = latestRuns.get(exportDef.id)
-            return (
-              <Card key={exportDef.id}>
-                <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{exportDef.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {OBJECT_TYPE_LABEL[exportDef.objectType] ?? exportDef.objectType} ·{" "}
-                      {exportDef.scheduleCron ? `Scheduled (${exportDef.scheduleTz})` : "Manual only"}
+        <Card className="overflow-hidden">
+          <ul className="divide-y divide-border">
+            {exports.map((exportDef) => {
+              const latest = latestRuns.get(exportDef.id)
+              const schedule = describeSchedule(exportDef.scheduleCron, exportDef.nextRunAt)
+              return (
+                <li
+                  key={exportDef.id}
+                  className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-medium">{exportDef.name}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                      <span>{OBJECT_TYPE_LABEL[exportDef.objectType] ?? exportDef.objectType}</span>
+                      <span aria-hidden>·</span>
+                      {schedule === "MANUAL" && <span>Manual only</span>}
+                      {schedule === "SCHEDULED" && <span>{`Scheduled (${exportDef.scheduleTz})`}</span>}
+                      {schedule === "INVALID" && (
+                        <Badge variant="destructive">
+                          <TriangleAlert aria-hidden />
+                          Schedule needs attention
+                        </Badge>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
                     {latest ? (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <RunStatusBadge status={latest.status as RunStatusValue} />
-                        <span>{formatDateTime(latest.finishedAt ?? latest.createdAt)}</span>
+                        <span className="tabular-nums">{formatDateTime(latest.finishedAt ?? latest.createdAt)}</span>
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">Never run</span>
@@ -82,12 +105,13 @@ export default async function DashboardPage() {
                     >
                       View runs
                     </Button>
+                    <RunNowButton exportId={exportDef.id} latestStatus={latest?.status as RunStatusValue | undefined} />
                   </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+                </li>
+              )
+            })}
+          </ul>
+        </Card>
       )}
     </div>
   )
@@ -95,19 +119,26 @@ export default async function DashboardPage() {
 
 function EmptyExportsState() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>No exports yet</CardTitle>
-        <CardDescription>
-          Create an export to pick an object type, choose properties, and get a clean Excel
-          file delivered on a schedule.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button render={<Link href="/dashboard/exports/new" />} nativeButton={false}>
+    <div className="mx-auto flex max-w-xl flex-col items-center px-4 py-16 text-center sm:py-20">
+      <div
+        aria-hidden
+        className="mb-6 grid size-11 place-items-center rounded-xl border border-border bg-card"
+      >
+        <Table2 className="size-5 text-muted-foreground" strokeWidth={1.75} />
+      </div>
+      <h1 className="text-2xl font-semibold tracking-[-0.02em]">No exports yet</h1>
+      <p className="mt-2.5 text-[15px] leading-relaxed text-muted-foreground">
+        An export is a saved definition of <span className="text-foreground">which properties</span> leave your
+        portal, <span className="text-foreground">how they&apos;re formatted</span>, and{" "}
+        <span className="text-foreground">how often</span> they run. Create one and it ships on schedule without
+        you.
+      </p>
+      <div className="mt-7">
+        <Button size="lg" render={<Link href="/dashboard/exports/new" />} nativeButton={false}>
+          <Plus aria-hidden />
           Create your first export
         </Button>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

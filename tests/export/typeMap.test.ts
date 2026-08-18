@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapCell, type PropertyDef, type MappedCell } from '@/lib/export/typeMap';
+import { mapCell, columnValueType, type PropertyDef, type MappedCell } from '@/lib/export/typeMap';
 
 // Rules under test (specs/05-EXPORT-ENGINE.md sections 4.0 and 4; ground truth
 // observed values from recon/FINDINGS.md sections 3, 7, 8 - FINDINGS wins on conflict):
@@ -566,5 +566,91 @@ describe('mapCell - null raw is always an empty cell, regardless of the definiti
     ],
   ])('%s with null raw -> null value', (_label, def) => {
     expect(mapCell(null, def).value).toBeNull();
+  });
+});
+
+// columnValueType answers "what kind of value will this column always be",
+// without a sample raw value in hand (lib/exportPreview.ts needs this: a
+// column's type must be known even when every sampled row is null). It
+// reads the same DISPATCH_TABLE mapCell/mapByType do - one table, two
+// questions - so these tests both pin its own per-case behaviour AND
+// cross-check it against mapCell's REAL runtime output, which is what would
+// actually catch the table drifting out from under one of its two readers.
+describe('columnValueType - specs/05-EXPORT-ENGINE.md sections 4.0 and 4, restated as a column-level kind', () => {
+  it('a referencedObjectType property is always text, even OWNER (resolved or not)', () => {
+    const owner: PropertyDef = { name: 'hubspot_owner_id', label: 'Owner', type: 'enumeration', fieldType: 'select', referencedObjectType: 'OWNER' };
+    const company: PropertyDef = { name: 'associatedcompanyid', label: 'Company', type: 'number', fieldType: 'number', referencedObjectType: 'COMPANY' };
+    expect(columnValueType(owner)).toBe('text');
+    expect(columnValueType(company)).toBe('text');
+  });
+
+  it('number -> number', () => {
+    expect(columnValueType({ name: 'amount', label: 'Amount', type: 'number', fieldType: 'number' })).toBe('number');
+  });
+
+  it('datetime -> datetime, date -> date (distinct - a datetime keeps its time-of-day)', () => {
+    expect(columnValueType({ name: 'a', label: 'A', type: 'datetime', fieldType: 'date' })).toBe('datetime');
+    expect(columnValueType({ name: 'b', label: 'B', type: 'date', fieldType: 'date' })).toBe('date');
+  });
+
+  it('bool -> boolean', () => {
+    expect(columnValueType({ name: 'flag', label: 'Flag', type: 'bool', fieldType: 'booleancheckbox' })).toBe('boolean');
+  });
+
+  it('enumeration/booleancheckbox -> boolean; every other enumeration fieldType -> text', () => {
+    expect(columnValueType({ name: 'x', label: 'X', type: 'enumeration', fieldType: 'booleancheckbox' })).toBe('boolean');
+    expect(columnValueType({ name: 'x', label: 'X', type: 'enumeration', fieldType: 'select' })).toBe('text');
+    expect(columnValueType({ name: 'x', label: 'X', type: 'enumeration', fieldType: 'checkbox' })).toBe('text');
+  });
+
+  it('string, phone_number, object_coordinates, and an unmapped type are all text', () => {
+    expect(columnValueType({ name: 'a', label: 'A', type: 'string', fieldType: 'text' })).toBe('text');
+    expect(columnValueType({ name: 'b', label: 'B', type: 'phone_number', fieldType: 'phonenumber' })).toBe('text');
+    expect(columnValueType({ name: 'c', label: 'C', type: 'object_coordinates', fieldType: 'text' })).toBe('text');
+    expect(columnValueType({ name: 'd', label: 'D', type: 'brand_new_type', fieldType: 'whatever' })).toBe('text');
+  });
+
+  it('an unknown (skipped) property is text', () => {
+    expect(columnValueType(undefined)).toBe('text');
+  });
+
+  describe('cross-check against mapCell\'s actual runtime output - the drift-detector', () => {
+    const CASES: { label: string; def: PropertyDef; raw: string }[] = [
+      { label: 'string/text', def: { name: 'firstname', label: 'First Name', type: 'string', fieldType: 'text' }, raw: 'Ada' },
+      { label: 'number/number', def: { name: 'amount', label: 'Amount', type: 'number', fieldType: 'number' }, raw: '42' },
+      { label: 'datetime/date', def: { name: 'createdate', label: 'Create Date', type: 'datetime', fieldType: 'date' }, raw: '2026-01-01T00:00:00.000Z' },
+      { label: 'date/date', def: { name: 'dob', label: 'DOB', type: 'date', fieldType: 'date' }, raw: '2026-01-01T00:00:00.000Z' },
+      { label: 'bool/booleancheckbox', def: { name: 'flag', label: 'Flag', type: 'bool', fieldType: 'booleancheckbox' }, raw: 'true' },
+      {
+        label: 'enumeration/select',
+        def: { name: 'stage', label: 'Stage', type: 'enumeration', fieldType: 'select', options: [{ value: 'a', label: 'A' }] },
+        raw: 'a',
+      },
+      {
+        label: 'enumeration/booleancheckbox',
+        def: { name: 'wf', label: 'WF', type: 'enumeration', fieldType: 'booleancheckbox' },
+        raw: 'true',
+      },
+      { label: 'object_coordinates/text', def: { name: 'oc', label: 'OC', type: 'object_coordinates', fieldType: 'text' }, raw: 'x' },
+      {
+        label: 'referencedObjectType COMPANY (declared number)',
+        def: { name: 'assoccompany', label: 'Company', type: 'number', fieldType: 'number', referencedObjectType: 'COMPANY' },
+        raw: '442222359747',
+      },
+    ];
+
+    it.each(CASES.map(({ label, def, raw }) => [label, def, raw] as const))(
+      '%s: columnValueType predicts the actual JS type of mapCell(...).value',
+      (_label, def, raw) => {
+        const predicted = columnValueType(def);
+        const actualValue = mapCell(raw, def).value;
+
+        const typeofToKind = { string: 'text', number: 'number', boolean: 'boolean' } as const;
+        const actualKind =
+          actualValue instanceof Date ? (def.type === 'datetime' ? 'datetime' : 'date') : typeofToKind[typeof actualValue as 'string' | 'number' | 'boolean'];
+
+        expect(predicted).toBe(actualKind);
+      },
+    );
   });
 });

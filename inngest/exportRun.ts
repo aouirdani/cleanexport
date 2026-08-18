@@ -80,6 +80,7 @@ import { loadPropertyDefs, loadOwners } from './propertyDefs';
 import { loadR2Config, uploadFileToR2, signedDownloadUrl, deriveObjectKey } from './r2';
 import { sendSuccessEmail, sendFailureEmail, buildReconnectUrl } from './email';
 import { disablePortalOnRevocation } from './revocation';
+import { logger } from '@/lib/logger';
 
 /** spec section 8: "Run exceeds 30 minutes -> Fail with TIMEOUT." */
 const MAX_RUN_MS = 30 * 60 * 1000;
@@ -223,6 +224,8 @@ export async function exportRunHandler({ event, step }: InngestFn) {
       data: { status: RunStatus.RUNNING, startedAt: new Date() },
     });
 
+    logger.info('export run started', { portalId: portal.id, exportRunId, exportId: exportDef.id });
+
     return {
       alreadyTerminal: false as const,
       portalId: portal.id,
@@ -362,6 +365,8 @@ export async function exportRunHandler({ event, step }: InngestFn) {
     }),
   );
 
+  logger.info('export run succeeded', { portalId: setup.portalId, exportRunId, rowCount: writeResult.rowCount });
+
   return { rowCount: writeResult.rowCount };
 }
 
@@ -379,6 +384,12 @@ export interface OnFailureFn {
 export async function exportRunOnFailure({ event, error, step }: OnFailureFn) {
   const { exportRunId } = event.data.event.data;
   const failure = parseFailureFromMessage(error.message);
+
+  // A plain read, not wrapped in step.run: onFailure only runs once per run
+  // (DECISION B above), and this has no side effect to make idempotent -
+  // it's only here so the log line below can carry portalId.
+  const runForLogging = await prisma.exportRun.findUnique({ where: { id: exportRunId }, select: { portalId: true } });
+  logger.error('export run failed', { portalId: runForLogging?.portalId, exportRunId, errorCode: failure.code });
 
   await step.run('mark-failed', () =>
     prisma.exportRun.updateMany({

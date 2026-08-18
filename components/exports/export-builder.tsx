@@ -2,19 +2,15 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import {
-  INITIAL_BUILDER_STATE,
-  OBJECT_TYPE_LABEL,
-  type BuilderState,
-  type FilterConditionState,
-  type ObjectTypeValue,
-} from "@/components/exports/types"
+import { INITIAL_BUILDER_STATE, OBJECT_TYPE_LABEL, type BuilderState, type ObjectTypeValue } from "@/components/exports/types"
+import { buildExportPayload } from "@/components/exports/payload"
 import { ObjectTypeStep } from "@/components/exports/object-type-step"
 import { PropertyPicker } from "@/components/exports/property-picker"
 import { HeaderStyleStep } from "@/components/exports/header-style-step"
 import { FiltersStep } from "@/components/exports/filters-step"
 import { AssociationsStep } from "@/components/exports/associations-step"
 import { ScheduleStep } from "@/components/exports/schedule-step"
+import { PreviewPanel } from "@/components/exports/preview-panel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -28,46 +24,8 @@ const STEPS = [
   "Schedule",
 ] as const;
 
-function toFilterConditionPayload(condition: FilterConditionState) {
-  switch (condition.operator) {
-    case "HAS_PROPERTY":
-    case "NOT_HAS_PROPERTY":
-      return { property: condition.property, operator: condition.operator };
-    case "BETWEEN":
-      return { property: condition.property, operator: condition.operator, value: condition.value, highValue: condition.highValue };
-    case "IN":
-      return {
-        property: condition.property,
-        operator: condition.operator,
-        values: condition.values.split(",").map((v) => v.trim()).filter(Boolean),
-      };
-    default:
-      return { property: condition.property, operator: condition.operator, value: condition.value };
-  }
-}
-
-function buildPayload(state: BuilderState) {
-  return {
-    name: state.name.trim(),
-    objectType: state.objectType,
-    properties: state.properties,
-    headerStyle: state.headerStyle,
-    filters: state.filters.length > 0 ? { operator: "AND" as const, conditions: state.filters.map(toFilterConditionPayload) } : undefined,
-    associations:
-      state.association && state.association.columns.length > 0
-        ? { toObjectType: state.association.toObjectType, columns: state.association.columns }
-        : undefined,
-    scheduleCron: state.scheduleCron,
-    scheduleTz: state.scheduleTz,
-    recipients: state.recipients
-      .split(/[,\n]/)
-      .map((r) => r.trim())
-      .filter(Boolean),
-  };
-}
-
 function canAdvance(step: number, state: BuilderState): boolean {
-  if (step === 0) return state.objectType !== null;
+  if (step === 0) return state.name.trim().length > 0 && state.objectType !== null;
   if (step === 1) return state.properties.length > 0;
   return true;
 }
@@ -102,7 +60,7 @@ export function ExportBuilder() {
       const res = await fetch("/api/exports", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildPayload(state)),
+        body: JSON.stringify(buildExportPayload(state)),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
@@ -125,8 +83,15 @@ export function ExportBuilder() {
       <Stepper current={step} onSelect={(i) => (i < step || canAdvance(step, state) ? setStep(i) : undefined)} />
 
       <Card>
-        <CardContent className="py-5">
-          {step === 0 && <ObjectTypeStep value={state.objectType} onChange={handleObjectTypeChange} />}
+        <CardContent className="py-5 sm:p-6">
+          {step === 0 && (
+            <ObjectTypeStep
+              name={state.name}
+              onNameChange={(name) => patch({ name })}
+              value={state.objectType}
+              onChange={handleObjectTypeChange}
+            />
+          )}
 
           {step === 1 && objectType && (
             <div className="flex flex-col gap-2">
@@ -151,8 +116,6 @@ export function ExportBuilder() {
 
           {step === 5 && (
             <ScheduleStep
-              name={state.name}
-              onNameChange={(name) => patch({ name })}
               scheduleCron={state.scheduleCron}
               onScheduleCronChange={(scheduleCron) => patch({ scheduleCron })}
               scheduleTz={state.scheduleTz}
@@ -164,18 +127,20 @@ export function ExportBuilder() {
         </CardContent>
       </Card>
 
+      <PreviewPanel state={state} />
+
       {saveError && <p className="text-sm text-destructive">{saveError}</p>}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-t border-border pt-5">
         <Button type="button" variant="outline" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
           Back
         </Button>
         {step < STEPS.length - 1 ? (
-          <Button type="button" onClick={() => setStep((s) => s + 1)} disabled={!canAdvance(step, state)}>
+          <Button type="button" size="lg" onClick={() => setStep((s) => s + 1)} disabled={!canAdvance(step, state)}>
             Next
           </Button>
         ) : (
-          <Button type="button" onClick={handleSave} disabled={saving}>
+          <Button type="button" size="lg" onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : "Save export"}
           </Button>
         )}
@@ -186,15 +151,15 @@ export function ExportBuilder() {
 
 function Stepper({ current, onSelect }: { current: number; onSelect: (index: number) => void }) {
   return (
-    <ol className="flex flex-wrap gap-2 text-xs">
+    <ol className="flex flex-wrap items-center gap-1.5 text-[13px]">
       {STEPS.map((label, index) => (
-        <li key={label}>
+        <li key={label} className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => onSelect(index)}
             aria-current={index === current ? "step" : undefined}
             className={cn(
-              "rounded-full border border-border px-2.5 py-1 transition-colors",
+              "flex items-center gap-1.5 rounded-full border border-border py-1 pr-3 pl-1.5 transition-colors",
               index === current
                 ? "border-primary bg-primary text-primary-foreground"
                 : index < current
@@ -202,8 +167,21 @@ function Stepper({ current, onSelect }: { current: number; onSelect: (index: num
                   : "text-muted-foreground",
             )}
           >
-            {index + 1}. {label}
+            <span
+              className={cn(
+                "grid size-5 shrink-0 place-items-center rounded-full text-[11px] tabular-nums",
+                index === current
+                  ? "bg-primary-foreground/20"
+                  : index < current
+                    ? "bg-muted"
+                    : "bg-muted/60",
+              )}
+            >
+              {index + 1}
+            </span>
+            {label}
           </button>
+          {index < STEPS.length - 1 && <span aria-hidden className="h-px w-3 bg-border" />}
         </li>
       ))}
     </ol>

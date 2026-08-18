@@ -1,3 +1,4 @@
+import { Clock, RefreshCw, CircleCheck, CircleX, CircleSlash } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 /**
@@ -26,12 +27,19 @@ const VARIANT: Record<RunStatusValue, "success" | "destructive" | "secondary" | 
   CANCELLED: "outline",
 }
 
+const ICON: Record<RunStatusValue, typeof Clock> = {
+  QUEUED: Clock,
+  RUNNING: RefreshCw,
+  SUCCESS: CircleCheck,
+  FAILED: CircleX,
+  CANCELLED: CircleSlash,
+}
+
 export function RunStatusBadge({ status }: { status: RunStatusValue }) {
+  const Icon = ICON[status]
   return (
     <Badge variant={VARIANT[status]}>
-      {status === "RUNNING" && (
-        <span className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />
-      )}
+      <Icon aria-hidden className={status === "RUNNING" ? "animate-spin" : undefined} />
       {LABEL[status]}
     </Badge>
   )

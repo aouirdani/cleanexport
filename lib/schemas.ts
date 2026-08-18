@@ -87,3 +87,8 @@ export const CreateExportSchema = z
   });
 
 export type CreateExportInput = z.infer<typeof CreateExportSchema>;
+
+/** specs/01-PRD.md A7: "$29/month or $290/year." POST /api/billing/checkout's body. */
+export const CheckoutSchema = z.object({
+  plan: z.enum(['monthly', 'yearly']),
+});

@@ -6,14 +6,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { readSessionMock } = vi.hoisted(() => ({ readSessionMock: vi.fn() }));
 vi.mock('@/lib/session', () => ({ readSession: readSessionMock }));
 
-const { findPortalMock, findUserMock } = vi.hoisted(() => ({
+const { findPortalMock, findUserMock, findSubscriptionMock } = vi.hoisted(() => ({
   findPortalMock: vi.fn(),
   findUserMock: vi.fn(),
+  findSubscriptionMock: vi.fn(),
 }));
 vi.mock('@/lib/db', () => ({
   prisma: {
     portal: { findUnique: findPortalMock },
     user: { findUnique: findUserMock },
+    subscription: { findUnique: findSubscriptionMock },
   },
 }));
 
@@ -25,6 +27,8 @@ beforeEach(() => {
   readSessionMock.mockReset();
   findPortalMock.mockReset();
   findUserMock.mockReset();
+  findSubscriptionMock.mockReset();
+  findSubscriptionMock.mockResolvedValue(null);
 });
 
 describe('getCurrentSession', () => {
@@ -101,5 +105,35 @@ describe('getCurrentSession', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('unreachable');
     expect(result.portal.disconnectedAt).toEqual(disconnectedAt);
+  });
+
+  it('returns subscription: null when the portal has never started a subscription', async () => {
+    readSessionMock.mockResolvedValue(SESSION);
+    findPortalMock.mockResolvedValue({ id: 'portal-1', hubspotPortalId: 1n, name: null, hubDomain: null, disconnectedAt: null });
+    findUserMock.mockResolvedValue(null);
+    findSubscriptionMock.mockResolvedValue(null);
+
+    const result = await getCurrentSession();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.subscription).toBeNull();
+  });
+
+  it('surfaces the subscription status/trialEndsAt/cancelAtPeriodEnd for the billing banner', async () => {
+    readSessionMock.mockResolvedValue(SESSION);
+    findPortalMock.mockResolvedValue({ id: 'portal-1', hubspotPortalId: 1n, name: null, hubDomain: null, disconnectedAt: null });
+    findUserMock.mockResolvedValue(null);
+    const trialEndsAt = new Date('2026-02-01T00:00:00Z');
+    findSubscriptionMock.mockResolvedValue({ status: 'TRIALING', trialEndsAt, cancelAtPeriodEnd: false });
+
+    const result = await getCurrentSession();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.subscription).toEqual({ status: 'TRIALING', trialEndsAt, cancelAtPeriodEnd: false });
+    expect(findSubscriptionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { portalId: 'portal-1' } }),
+    );
   });
 });

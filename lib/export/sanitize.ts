@@ -65,3 +65,31 @@ export function sanitizeCell(raw: unknown): string | number | boolean | Date | n
 
   return value;
 }
+
+/**
+ * Prepares a raw string for type coercion (rule 6, in lib/export/typeMap.ts's
+ * mapCell) - spec section 3 rule 6 runs LAST, after sanitisation, so a raw
+ * value bound for coercion is sanitised first (control characters stripped,
+ * line endings normalised) exactly like any other value.
+ *
+ * Rule 4 (quote a leading = + - @) is a defence for TEXT cells against
+ * formula injection - it is meaningless for a cell mapCell is about to turn
+ * into a number, date, or boolean, and actively harmful: "-5" would become
+ * "'-5", which then fails to parse as a number at all. So a quote ADDED by
+ * this pass is undone before coercion; mapCell always sees the value with
+ * its original leading character. If the coerced result is still a string,
+ * a later `sanitizeCell(mapped.value)` call re-applies rule 4 to it -
+ * injection defence on the actual text that ends up in the cell is
+ * unaffected.
+ *
+ * The single seam every caller that runs the real pipeline must share:
+ * lib/export/writer.ts (the real export) and lib/exportPreview.ts (the
+ * preview) both call this, so "sanitise then coerce" cannot silently drift
+ * between the two.
+ */
+export function sanitizeRawForCoercion(raw: string): string {
+  const sanitized = sanitizeCell(raw);
+  const text = typeof sanitized === 'string' ? sanitized : raw; // sanitizeCell(string) always returns a string
+  if (text.startsWith("'") && !raw.startsWith("'")) return text.slice(1);
+  return text;
+}
