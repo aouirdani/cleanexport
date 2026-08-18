@@ -23,11 +23,16 @@
  * Instead, a minimal object exposing just the listObjects/searchObjects
  * methods fetchRecords actually calls is built below and cast to
  * HubSpotClient's type, the same way the test suite's fake clients do.
+ *
+ * Env loading: same mechanism every script in scripts/ uses (dotenv - see
+ * scripts/backfill-invalid-schedules.mts), pointed at recon/.env instead of
+ * the repo root's .env because HUBSPOT_PRIVATE_APP_TOKEN is recon-only
+ * throwaway credentials, not part of the app's own runtime environment.
  */
 
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { config as loadEnv } from 'dotenv';
 
 import { fetchRecords } from '@/lib/export/fetch';
 import { writeExport } from '@/lib/export/writer';
@@ -36,6 +41,8 @@ import type { HubSpotClient } from '@/lib/hubspot/client';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ENV_PATH = join(HERE, '..', 'recon', '.env');
+loadEnv({ path: ENV_PATH });
+
 const OUTPUT_PATH = '/tmp/cleanexport-e2e.xlsx';
 const OBJECT_TYPE = 'contacts';
 const PROPERTIES = ['message', 'firstname', 'email', 'createdate', 'hubspot_owner_id'];
@@ -44,17 +51,9 @@ const API_BASE = 'https://api.hubapi.com';
 const API_VERSION = process.env.HUBSPOT_API_VERSION ?? '2026-03';
 
 function readPrivateAppToken(): string {
-  const content = readFileSync(ENV_PATH, 'utf8');
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eq = trimmed.indexOf('=');
-    if (eq === -1) continue;
-    if (trimmed.slice(0, eq).trim() !== 'HUBSPOT_PRIVATE_APP_TOKEN') continue;
-    const value = trimmed.slice(eq + 1).trim();
-    if (value) return value;
-  }
-  throw new Error(`HUBSPOT_PRIVATE_APP_TOKEN not found in ${ENV_PATH}`);
+  const token = process.env.HUBSPOT_PRIVATE_APP_TOKEN;
+  if (!token) throw new Error(`HUBSPOT_PRIVATE_APP_TOKEN not found in ${ENV_PATH}`);
+  return token;
 }
 
 /**
