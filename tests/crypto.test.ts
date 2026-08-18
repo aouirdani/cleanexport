@@ -10,7 +10,7 @@ afterEach(() => { process.env.ENCRYPTION_KEY = KEY_A; });
 
 describe('encrypt / decrypt', () => {
   it('round-trips a plain token', () => {
-    const token = 'REDACTED';
+    const token = 'EXAMPLE-TOKEN-NOT-A-REAL-CREDENTIAL';
     expect(decrypt(encrypt(token))).toBe(token);
   });
 
@@ -116,7 +116,7 @@ describe('key validation', () => {
 describe('helpers', () => {
   it('isEncrypted recognises our payloads and rejects others', () => {
     expect(isEncrypted(encrypt('x'))).toBe(true);
-    expect(isEncrypted('pat-eu1-plain-token')).toBe(false);
+    expect(isEncrypted('EXAMPLE-TOKEN-NOT-A-REAL-CREDENTIALplain-token')).toBe(false);
     expect(isEncrypted(null)).toBe(false);
   });
 
