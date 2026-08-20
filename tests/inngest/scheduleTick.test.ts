@@ -27,14 +27,19 @@ interface FakeExportRun {
   createdAt: Date;
 }
 
-function makeFakePrisma(initial: { id: string; portalId: string; nextRunAt: Date; scheduleCron: string; scheduleTz: string }) {
+function makeFakePrisma(
+  initial: { id: string; portalId: string; nextRunAt: Date; scheduleCron: string; scheduleTz: string },
+  subscription: { status: string; trialEndsAt: Date | null; pastDueSince: Date | null } | null = null,
+) {
   let def = { ...initial, isActive: true };
   const runs: FakeExportRun[] = [];
   let runCounter = 0;
 
   return {
     exportDefinition: {
-      findMany: vi.fn(async () => (def.isActive && def.nextRunAt.getTime() <= Date.now() ? [{ ...def }] : [])),
+      findMany: vi.fn(async () =>
+        def.isActive && def.nextRunAt.getTime() <= Date.now() ? [{ ...def, portal: { subscription } }] : [],
+      ),
       updateMany: vi.fn(async ({ where, data }: { where: { id: string; nextRunAt: Date; isActive: boolean }; data: Partial<typeof def> }) => {
         if (where.id === def.id && where.nextRunAt.getTime() === def.nextRunAt.getTime() && where.isActive === def.isActive) {
           def = { ...def, ...data };
@@ -142,5 +147,103 @@ describe('scheduleTickHandler - compare-and-swap prevents a double-claimed sched
     expect(result).toEqual({ schedulesDue: 0 });
     expect(fakePrisma.runs).toHaveLength(0);
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+// Requirement: "scheduleTick must skip portals without an active
+// subscription - not fail their runs, skip them, so they get no failure
+// email for a billing problem." A skip means no ExportRun row is created at
+// all (never a FAILED one) and nextRunAt is left untouched, so the schedule
+// is simply re-evaluated on the next tick rather than being disabled.
+describe('scheduleTickHandler - lapsed subscriptions are skipped, not failed', () => {
+  it('CANCELED: no run is created, no event is sent, and nextRunAt is left untouched', async () => {
+    const fakePrisma = makeFakePrisma(DUE_SCHEDULE, { status: 'CANCELED', trialEndsAt: null, pastDueSince: null });
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    const send = vi.fn(async () => ({ ids: [] }));
+    const result = await scheduleTickHandler({ step: makeStep(), send });
+
+    expect(result).toEqual({ schedulesDue: 1 }); // it WAS due - just skipped, not "not found"
+    expect(fakePrisma.runs).toHaveLength(0);
+    expect(send).not.toHaveBeenCalled();
+    expect(fakePrisma.exportDefinition.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('a trial expired in the past is skipped', async () => {
+    const fakePrisma = makeFakePrisma(DUE_SCHEDULE, {
+      status: 'TRIALING',
+      trialEndsAt: new Date(Date.now() - 1000),
+      pastDueSince: null,
+    });
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    const result = await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: [] })) });
+
+    expect(fakePrisma.runs).toHaveLength(0);
+    expect(result).toEqual({ schedulesDue: 1 });
+  });
+
+  it('a trial still running (trialEndsAt in the future) is NOT skipped', async () => {
+    const fakePrisma = makeFakePrisma(DUE_SCHEDULE, {
+      status: 'TRIALING',
+      trialEndsAt: new Date(Date.now() + 60 * 60_000),
+      pastDueSince: null,
+    });
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: ['evt-1'] })) });
+
+    expect(fakePrisma.runs).toHaveLength(1);
+  });
+
+  it('PAST_DUE within the grace period is NOT skipped', async () => {
+    const fakePrisma = makeFakePrisma(DUE_SCHEDULE, {
+      status: 'PAST_DUE',
+      trialEndsAt: null,
+      pastDueSince: new Date(Date.now() - 24 * 60 * 60_000), // 1 day ago
+    });
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: ['evt-1'] })) });
+
+    expect(fakePrisma.runs).toHaveLength(1);
+  });
+
+  it('PAST_DUE beyond the grace period is skipped', async () => {
+    const fakePrisma = makeFakePrisma(DUE_SCHEDULE, {
+      status: 'PAST_DUE',
+      trialEndsAt: null,
+      pastDueSince: new Date(Date.now() - 8 * 24 * 60 * 60_000), // 8 days ago
+    });
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: [] })) });
+
+    expect(fakePrisma.runs).toHaveLength(0);
+  });
+
+  it('a portal with no Subscription row at all (never checked out) is NOT skipped', async () => {
+    const fakePrisma = makeFakePrisma(DUE_SCHEDULE, null);
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: ['evt-1'] })) });
+
+    expect(fakePrisma.runs).toHaveLength(1);
+  });
+
+  it('ACTIVE is NOT skipped', async () => {
+    const fakePrisma = makeFakePrisma(DUE_SCHEDULE, { status: 'ACTIVE', trialEndsAt: null, pastDueSince: null });
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: ['evt-1'] })) });
+
+    expect(fakePrisma.runs).toHaveLength(1);
   });
 });

@@ -11,6 +11,7 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getCurrentSession } from "@/lib/currentPortal"
+import { describeSubscriptionForBanner } from "@/lib/plan"
 import { LogoutButton } from "@/components/logout-button"
 import { ReconnectBanner } from "@/components/dashboard/reconnect-banner"
 import { BillingBanner } from "@/components/dashboard/billing-banner"
@@ -89,19 +90,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       {isDisconnected && <ReconnectBanner />}
 
-      <BillingBanner
-        subscription={
-          subscription
-            ? {
-                status: subscription.status,
-                cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-                trialDaysRemaining: subscription.trialEndsAt
-                  ? Math.max(0, Math.ceil((subscription.trialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
-                  : null,
-              }
-            : null
-        }
-      />
+      <BillingBanner subscription={describeSubscriptionForBanner(subscription)} />
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">{children}</main>
     </div>

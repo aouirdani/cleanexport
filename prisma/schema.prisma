@@ -105,6 +105,11 @@ model Subscription {
   trialEndsAt           DateTime?
   currentPeriodEnd      DateTime?
   cancelAtPeriodEnd     Boolean  @default(false)
+  /// When `status` most recently became PAST_DUE - null otherwise. Set once
+  /// on entry (not bumped by later idempotent re-syncs of the same status)
+  /// so a grace-period check ("how long has this been PAST_DUE") isn't
+  /// reset by every Stripe webhook retry the way `updatedAt` would be.
+  pastDueSince          DateTime?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

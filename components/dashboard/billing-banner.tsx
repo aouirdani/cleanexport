@@ -10,7 +10,14 @@ import { Button } from "@/components/ui/button"
 type SubStatusValue = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED"
 
 export interface BillingBannerProps {
-  subscription: { status: SubStatusValue; trialDaysRemaining: number | null; cancelAtPeriodEnd: boolean } | null
+  /** Shape matches lib/plan.ts's SubscriptionBannerState - that function is the one place deciding what this says. */
+  subscription: {
+    status: SubStatusValue
+    cancelAtPeriodEnd: boolean
+    isLapsed: boolean
+    trialDaysRemaining: number | null
+    graceDaysRemaining: number | null
+  } | null
 }
 
 /**
@@ -67,6 +74,19 @@ export function BillingBanner({ subscription }: BillingBannerProps) {
     </div>
   );
 
+  const updatePaymentButton = (
+    <Button size="sm" variant="outline" onClick={openPortal} disabled={pending !== null}>
+      {pending === "portal" ? "Redirecting…" : "Update payment method"}
+    </Button>
+  );
+
+  // What's blocked while lapsed - lib/plan.ts's assertWithinPlan enforces
+  // exactly this (CREATE_EXPORT/CREATE_SCHEDULE/RUN_EXPORT); existing
+  // exports, run history, and downloads are deliberately NOT in this list
+  // (requirement 2 - a lapsed customer doesn't lose access to what they
+  // already have, just the ability to start anything new).
+  const BLOCKED = "Creating new exports and running existing ones is paused; scheduled runs won't fire either."
+
   let content: { message: string; tone: "default" | "warning"; action: React.ReactNode } | null = null;
 
   if (subscription === null) {
@@ -77,25 +97,33 @@ export function BillingBanner({ subscription }: BillingBannerProps) {
     };
   } else if (subscription.status === "TRIALING") {
     const days = subscription.trialDaysRemaining;
-    content = {
-      message: days === null ? "You're on a trial." : `${days} day${days === 1 ? "" : "s"} left in your trial.`,
-      tone: "default",
-      action: subscribeButtons,
-    };
+    content = subscription.isLapsed
+      ? { message: `Your trial has ended. ${BLOCKED}`, tone: "warning", action: subscribeButtons }
+      : {
+          message: days === null ? "You're on a trial." : `${days} day${days === 1 ? "" : "s"} left in your trial.`,
+          tone: "default",
+          action: subscribeButtons,
+        };
   } else if (subscription.status === "PAST_DUE") {
-    content = {
-      message: "Your last payment failed. Update your payment method to keep your schedules running.",
-      tone: "warning",
-      action: (
-        <Button size="sm" variant="outline" onClick={openPortal} disabled={pending !== null}>
-          {pending === "portal" ? "Redirecting…" : "Update payment method"}
-        </Button>
-      ),
-    };
+    const days = subscription.graceDaysRemaining;
+    content = subscription.isLapsed
+      ? {
+          message: `Your payment is past due and the grace period has ended. ${BLOCKED} Update your payment method to resume.`,
+          tone: "warning",
+          action: updatePaymentButton,
+        }
+      : {
+          message:
+            days === null
+              ? "Your last payment failed. Update your payment method to keep your schedules running."
+              : `Your last payment failed. You have ${days} day${days === 1 ? "" : "s"} to update your payment method before exports pause.`,
+          tone: "warning",
+          action: updatePaymentButton,
+        };
   } else if (subscription.status === "CANCELED") {
     content = {
-      message: "Your subscription was canceled.",
-      tone: "default",
+      message: `Your subscription was canceled. ${BLOCKED}`,
+      tone: "warning",
       action: subscribeButtons,
     };
   }

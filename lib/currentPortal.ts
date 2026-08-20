@@ -36,6 +36,8 @@ export interface CurrentSubscription {
   status: SubStatus;
   trialEndsAt: Date | null;
   cancelAtPeriodEnd: boolean;
+  /** Needed to compute the PAST_DUE grace period - see lib/plan.ts's isSubscriptionLapsed. */
+  pastDueSince: Date | null;
 }
 
 export type CurrentSessionResult =
@@ -62,7 +64,7 @@ export const getCurrentSession = cache(async (): Promise<CurrentSessionResult> =
 
   const subscription = await prisma.subscription.findUnique({
     where: { portalId: session.portalId },
-    select: { status: true, trialEndsAt: true, cancelAtPeriodEnd: true },
+    select: { status: true, trialEndsAt: true, cancelAtPeriodEnd: true, pastDueSince: true },
   });
 
   return {

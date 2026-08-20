@@ -44,6 +44,24 @@ function unixToDate(seconds: number | null | undefined): Date | null {
 }
 
 /**
+ * `pastDueSince` marks when `status` most recently BECAME PAST_DUE, not just
+ * that it currently is - see prisma/schema.prisma's field comment. Re-syncing
+ * PAST_DUE while already PAST_DUE (e.g. a second `invoice.payment_failed` for
+ * the same subscription, or an unrelated `customer.subscription.updated`
+ * webhook that leaves status unchanged) must not push the clock forward, or
+ * lib/plan.ts's grace period would never elapse as long as Stripe keeps
+ * retrying. Leaving PAST_DUE for any other status clears it.
+ */
+function nextPastDueSince(
+  previous: { status: SubStatus; pastDueSince: Date | null } | null,
+  nextStatus: SubStatus,
+): Date | null {
+  if (nextStatus !== SubStatus.PAST_DUE) return null;
+  if (previous?.status === SubStatus.PAST_DUE) return previous.pastDueSince ?? new Date();
+  return new Date();
+}
+
+/**
  * Every Stripe subscription status maps to something, including ones this
  * version of the SDK doesn't know about yet (`Stripe.Subscription.Status`
  * includes a forward-compatible `OtherString` case) - never throws, never
@@ -110,18 +128,25 @@ export async function syncSubscriptionFromStripeObject(subscription: Stripe.Subs
   const portalId = await resolvePortalIdByCustomerId(stripeCustomerId);
   if (!portalId) return; // a customer we didn't create - nothing of ours to update
 
+  const current = await prisma.subscription.findUnique({
+    where: { portalId },
+    select: { status: true, pastDueSince: true },
+  });
+
   // current_period_end moved from the Subscription object onto its items in
   // recent Stripe API versions - see node_modules/stripe's SubscriptionItems type.
   const currentPeriodEnd = subscription.items.data[0]?.current_period_end;
+  const status = mapStripeStatus(subscription.status);
 
   await prisma.subscription.update({
     where: { portalId },
     data: {
       stripeSubscriptionId: subscription.id,
-      status: mapStripeStatus(subscription.status),
+      status,
       trialEndsAt: unixToDate(subscription.trial_end),
       currentPeriodEnd: unixToDate(currentPeriodEnd),
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      pastDueSince: nextPastDueSince(current, status),
     },
   });
 }
@@ -152,7 +177,12 @@ export async function handleSubscriptionDeleted(subscription: Stripe.Subscriptio
 
   await prisma.subscription.update({
     where: { portalId },
-    data: { status: SubStatus.CANCELED, stripeSubscriptionId: subscription.id, cancelAtPeriodEnd: false },
+    data: {
+      status: SubStatus.CANCELED,
+      stripeSubscriptionId: subscription.id,
+      cancelAtPeriodEnd: false,
+      pastDueSince: null,
+    },
   });
 }
 
@@ -163,9 +193,14 @@ export async function handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promi
   const portalId = await resolvePortalIdByCustomerId(stripeCustomerId);
   if (!portalId) return;
 
+  const current = await prisma.subscription.findUnique({
+    where: { portalId },
+    select: { status: true, pastDueSince: true },
+  });
+
   await prisma.subscription.update({
     where: { portalId },
-    data: { status: SubStatus.PAST_DUE },
+    data: { status: SubStatus.PAST_DUE, pastDueSince: nextPastDueSince(current, SubStatus.PAST_DUE) },
   });
 }
 

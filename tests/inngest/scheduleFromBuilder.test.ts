@@ -25,7 +25,9 @@ function makeFakePrisma(def: { id: string; portalId: string; nextRunAt: Date; sc
 
   return {
     exportDefinition: {
-      findMany: vi.fn(async () => (row.isActive && row.nextRunAt.getTime() <= Date.now() ? [{ ...row }] : [])),
+      findMany: vi.fn(async () =>
+        row.isActive && row.nextRunAt.getTime() <= Date.now() ? [{ ...row, portal: { subscription: null } }] : [],
+      ),
       updateMany: vi.fn(
         async ({ where, data }: { where: { id: string; nextRunAt: Date; isActive: boolean }; data: Partial<typeof row> }) => {
           if (where.id === row.id && where.nextRunAt.getTime() === row.nextRunAt.getTime() && where.isActive === row.isActive) {

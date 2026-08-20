@@ -26,6 +26,7 @@
 import { inngest } from './client';
 import { prisma } from '@/lib/db';
 import { RunStatus, Trigger } from '@/lib/generated/prisma/client';
+import { isSubscriptionLapsed } from '@/lib/plan';
 
 function cronFieldMatches(value: number, field: string, min: number, max: number): boolean {
   for (const part of field.split(',')) {
@@ -113,12 +114,27 @@ export async function scheduleTickHandler({ step, send = inngest.send.bind(innge
         nextRunAt: { lte: now },
         portal: { disconnectedAt: null },
       },
-      select: { id: true, portalId: true, scheduleCron: true, scheduleTz: true, nextRunAt: true },
+      select: {
+        id: true,
+        portalId: true,
+        scheduleCron: true,
+        scheduleTz: true,
+        nextRunAt: true,
+        portal: { select: { subscription: { select: { status: true, trialEndsAt: true, pastDueSince: true } } } },
+      },
     }),
   );
 
   for (const exp of due) {
     await step.run(`claim-and-run-${exp.id}`, async () => {
+      // A lapsed subscription (expired trial, past-due beyond its grace
+      // period, or canceled) means "no NEW run" - not a failure. Leaving
+      // nextRunAt untouched (rather than claiming/advancing it) means this
+      // schedule is simply re-evaluated, and skipped again, on every future
+      // tick until the subscription is current - no failure email, no
+      // ExportRun row at all for this tick.
+      if (isSubscriptionLapsed(exp.portal.subscription, now)) return;
+
       // scheduleCron/nextRunAt are non-null by the query above.
       const next = nextCronOccurrence(exp.scheduleCron!, exp.scheduleTz, now);
 
