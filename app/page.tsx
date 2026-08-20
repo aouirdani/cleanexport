@@ -81,7 +81,7 @@ const FAQ = [
   },
   {
     q: "Who built this?",
-    a: "Aymane Ouirdani. Contact me directly at support@cleanexport.com — you'll get a reply from the person who writes the code.",
+    a: "Aymane Ouirdani. Contact me directly at support@cleanexporter.com — you'll get a reply from the person who writes the code.",
   },
 ] as const
 
@@ -152,8 +152,43 @@ export default async function LandingPage() {
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-16">
             <div className="grid gap-4 sm:grid-cols-2">
               <figure className="flex flex-col gap-2">
-                <div className="flex aspect-video items-center justify-center rounded-lg border border-dashed border-border bg-background text-center text-sm text-muted-foreground">
-                  Screenshot placeholder — HubSpot&apos;s CSV export
+                <div className="overflow-x-auto rounded-lg border border-border bg-background">
+                  <table className="w-full min-w-max text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/50">
+                        <th className="px-2.5 py-2 font-medium">Name</th>
+                        <th className="px-2.5 py-2 font-medium">Notes</th>
+                        <th className="px-2.5 py-2 font-medium text-left">Date created</th>
+                        <th className="px-2.5 py-2 font-medium">Owner</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-border/60">
+                        <td className="px-2.5 py-1.5 align-top">Jordan Lee</td>
+                        <td className="px-2.5 py-1.5 align-top">Interested in Enterprise plan.</td>
+                        <td className="px-2.5 py-1.5 align-top text-left">3/1/2024</td>
+                        <td className="px-2.5 py-1.5 align-top font-mono">96879917</td>
+                      </tr>
+                      <tr className="border-b border-border/60">
+                        <td className="px-2.5 py-1.5 align-top"></td>
+                        <td className="px-2.5 py-1.5 align-top">Follow up after Q3 renewal.</td>
+                        <td className="px-2.5 py-1.5 align-top"></td>
+                        <td className="px-2.5 py-1.5 align-top"></td>
+                      </tr>
+                      <tr className="border-b border-border/60">
+                        <td className="px-2.5 py-1.5 align-top"></td>
+                        <td className="px-2.5 py-1.5 align-top">Wants pricing for 50 seats.</td>
+                        <td className="px-2.5 py-1.5 align-top"></td>
+                        <td className="px-2.5 py-1.5 align-top"></td>
+                      </tr>
+                      <tr className="last:border-0">
+                        <td className="px-2.5 py-1.5 align-top"></td>
+                        <td className="px-2.5 py-1.5 align-top">Loop in the CS team before renewal.</td>
+                        <td className="px-2.5 py-1.5 align-top"></td>
+                        <td className="px-2.5 py-1.5 align-top"></td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
                 <figcaption className="text-sm">
                   <span className="font-semibold">Left — HubSpot&apos;s CSV export.</span>{" "}
@@ -163,8 +198,39 @@ export default async function LandingPage() {
                 </figcaption>
               </figure>
               <figure className="flex flex-col gap-2">
-                <div className="flex aspect-video items-center justify-center rounded-lg border border-dashed border-border bg-background text-center text-sm text-muted-foreground">
-                  Screenshot placeholder — CleanExport
+                <div className="overflow-x-auto rounded-lg border border-primary/30 bg-background">
+                  <table className="w-full min-w-max text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/50">
+                        <th className="px-2.5 py-2 align-bottom font-medium">
+                          <div>Name</div>
+                          <div className="text-[9px] font-normal tracking-wider text-muted-foreground uppercase">text</div>
+                        </th>
+                        <th className="px-2.5 py-2 align-bottom font-medium">
+                          <div>Notes</div>
+                          <div className="text-[9px] font-normal tracking-wider text-muted-foreground uppercase">text</div>
+                        </th>
+                        <th className="px-2.5 py-2 align-bottom font-medium text-right">
+                          <div>Date created</div>
+                          <div className="text-[9px] font-normal tracking-wider text-muted-foreground uppercase">date</div>
+                        </th>
+                        <th className="px-2.5 py-2 align-bottom font-medium">
+                          <div>Owner</div>
+                          <div className="text-[9px] font-normal tracking-wider text-muted-foreground uppercase">text</div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="px-2.5 py-1.5 align-top">Jordan Lee</td>
+                        <td className="px-2.5 py-1.5 align-top whitespace-pre-wrap">
+                          {"Interested in Enterprise plan.\nFollow up after Q3 renewal.\nWants pricing for 50 seats.\nLoop in the CS team before renewal."}
+                        </td>
+                        <td className="px-2.5 py-1.5 align-top text-right font-mono tabular-nums">2024-03-01</td>
+                        <td className="px-2.5 py-1.5 align-top">Alex Rivera</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
                 <figcaption className="text-sm">
                   <span className="font-semibold">Right — CleanExport.</span>{" "}
