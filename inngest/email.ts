@@ -8,12 +8,22 @@
  * Inngest step that already sent an email is retried (e.g. the send
  * succeeded but the confirmation was lost), the retried call reuses the same
  * key instead of creating a second email.
+ *
+ * Defect #3 ("the emails are unreadable"): every send here carries both
+ * `html` and `text` - Resend does not synthesize a plain-text part from HTML
+ * on its own, so before this there wasn't one at all; a client that
+ * preferred/fell back to plain text got nothing, or (depending on the
+ * client's own HTML-to-text fallback) a naive tag-strip that dumped a raw,
+ * unwrapped URL inline. `wrapParagraph` wraps prose at 78 characters for the
+ * text part - a bare URL is a single unbreakable "word" and is deliberately
+ * left as its own line rather than split.
  */
 
 import { Resend } from 'resend';
 import { readFile } from 'node:fs/promises';
 
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // spec section 9
+const TEXT_WRAP_WIDTH = 78;
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -29,10 +39,13 @@ function fromAddress(): string {
   return process.env.EMAIL_FROM ?? 'CleanExport <exports@cleanexport.app>';
 }
 
+function appUrl(): string {
+  return process.env.APP_URL ?? 'http://localhost:3000';
+}
+
 /** The dashboard prompts a fresh OAuth connect when the portal is disconnected. */
 export function buildReconnectUrl(): string {
-  const base = process.env.APP_URL ?? 'http://localhost:3000';
-  return `${base}/dashboard`;
+  return `${appUrl()}/dashboard`;
 }
 
 /**
@@ -47,8 +60,12 @@ export function buildReconnectUrl(): string {
  * short, readable, never-expiring-on-its-own-face URL.
  */
 export function buildRunDownloadUrl(exportRunId: string): string {
-  const base = process.env.APP_URL ?? 'http://localhost:3000';
-  return `${base}/api/runs/${exportRunId}/download`;
+  return `${appUrl()}/api/runs/${exportRunId}/download`;
+}
+
+/** specs/07-TASKS.md T19's filtered run-history view - "a link back to the run" (defect #3). */
+export function buildRunHistoryUrl(exportId: string): string {
+  return `${appUrl()}/dashboard/runs?exportId=${exportId}`;
 }
 
 function escapeHtml(value: string): string {
@@ -59,7 +76,55 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function layout(title: string, bodyHtml: string): string {
+/**
+ * Day-month(-year), always in a fixed order ("20 Aug", never "Aug 20") and a
+ * fixed timezone (UTC) regardless of server locale/TZ - built from the raw
+ * UTC fields rather than `Intl.DateTimeFormat`'s locale-dependent field
+ * order, which for en-US puts the month first.
+ */
+function shortDate(date: Date, includeYear = false): string {
+  const day = date.getUTCDate();
+  const month = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short' }).format(date);
+  return includeYear ? `${day} ${month} ${date.getUTCFullYear()}` : `${day} ${month}`;
+}
+
+/**
+ * Greedy word-wrap for the plain-text part - defect #3: "the plain-text part
+ * must wrap at 78 characters." A single "word" longer than the width (a bare
+ * URL, most often) is left on its own line rather than broken - breaking a
+ * URL mid-string would make it unusable.
+ */
+function wrapParagraph(text: string, width = TEXT_WRAP_WIDTH): string {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    if (line.length === 0) {
+      line = word;
+    } else if (line.length + 1 + word.length <= width) {
+      line += ` ${word}`;
+    } else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.join('\n');
+}
+
+function plainTextBody(paragraphs: string[]): string {
+  return paragraphs
+    .filter((p) => p.length > 0)
+    .map((p) => wrapParagraph(p))
+    .join('\n\n');
+}
+
+/**
+ * Quiet, minimal layout shared by every email here: no emoji, no marketing
+ * tone, no unsubscribe footer (this is transactional mail, not a newsletter)
+ * - just a title, the body, and a small signature line.
+ */
+function htmlLayout(title: string, bodyHtml: string): string {
   return `<!doctype html><html><body style="font-family:sans-serif;color:#1a1a1a;line-height:1.5">
 <h2 style="margin:0 0 16px">${escapeHtml(title)}</h2>
 ${bodyHtml}
@@ -67,49 +132,91 @@ ${bodyHtml}
 </body></html>`;
 }
 
+function paragraphsToHtml(paragraphs: string[]): string {
+  return paragraphs
+    .filter((p) => p.length > 0)
+    .map((p) => `<p>${p}</p>`)
+    .join('\n');
+}
+
 export interface SuccessEmailInput {
   recipients: string[];
   idempotencyKey: string;
   exportName: string;
+  /** Display label, e.g. "Contacts" - not the raw ObjectType enum value. */
+  objectTypeLabel: string;
+  /** Portal.hubDomain - null is possible (HubSpot didn't return one yet); a customer with two portals must be able to tell them apart. */
+  portalDomain: string | null;
   rowCount: number;
   downloadUrl: string;
+  /** A link back to this run in the dashboard's run history. */
+  runUrl: string;
+  /** The signed download link's real expiry - shown as a date, never "in 7 days" (defect #3). */
+  expiresAt: Date;
   skippedColumns: string[];
   filePath?: string;
   fileSizeBytes: number;
+  /** The moment this run finished - drives the subject's date. A parameter, not read internally, so this stays a pure function of its inputs. */
+  date: Date;
 }
 
 export async function sendSuccessEmail(input: SuccessEmailInput): Promise<void> {
   if (input.recipients.length === 0) return;
 
-  const zeroRowsNotice =
-    input.rowCount === 0
-      ? '<p><strong>0 records matched.</strong> The file still has headers - your filters may be too narrow.</p>'
-      : `<p>${input.rowCount.toLocaleString()} record${input.rowCount === 1 ? '' : 's'} exported.</p>`;
+  const portalPhrase = input.portalDomain ? `from ${input.portalDomain}` : 'from your HubSpot portal';
+  const rowsFormatted = input.rowCount.toLocaleString('en-US');
 
-  const skippedNotice = input.skippedColumns.length
-    ? `<p>These columns no longer exist in your HubSpot portal and were skipped: ${escapeHtml(
-        input.skippedColumns.join(', '),
-      )}.</p>`
+  // specs/05-EXPORT-ENGINE.md section 8: "Email says '0 records matched'" -
+  // that exact phrase, not a paraphrase.
+  const summaryHtml =
+    input.rowCount === 0
+      ? `<strong>${escapeHtml(input.exportName)}</strong> (${escapeHtml(input.objectTypeLabel)}) ${escapeHtml(portalPhrase)}: 0 records matched. The file still has headers - your filters may be too narrow.`
+      : `<strong>${escapeHtml(input.exportName)}</strong> (${escapeHtml(input.objectTypeLabel)}) exported ${rowsFormatted} row${input.rowCount === 1 ? '' : 's'} ${escapeHtml(portalPhrase)}.`;
+  const summaryText =
+    input.rowCount === 0
+      ? `${input.exportName} (${input.objectTypeLabel}) ${portalPhrase}: 0 records matched. The file still has headers - your filters may be too narrow.`
+      : `${input.exportName} (${input.objectTypeLabel}) exported ${rowsFormatted} row${input.rowCount === 1 ? '' : 's'} ${portalPhrase}.`;
+
+  const attachEligible = input.fileSizeBytes <= MAX_ATTACHMENT_BYTES && Boolean(input.filePath);
+  const fileMb = (input.fileSizeBytes / (1024 * 1024)).toFixed(1);
+  const fileHtml = attachEligible
+    ? 'The file is attached, and also available at the link below.'
+    : `The file is ${fileMb} MB - too large to attach, so it is available at the link below.`;
+  const fileText = fileHtml;
+
+  const downloadHtml = `<a href="${input.downloadUrl}">Download the file</a>`;
+  const downloadText = `Download the file: ${input.downloadUrl}`;
+
+  const expiryHtml = `This link expires on ${shortDate(input.expiresAt, true)}.`;
+  const expiryText = expiryHtml;
+
+  const skippedHtml = input.skippedColumns.length
+    ? `These columns no longer exist in your HubSpot portal and were skipped: ${escapeHtml(input.skippedColumns.join(', '))}.`
+    : '';
+  const skippedText = input.skippedColumns.length
+    ? `These columns no longer exist in your HubSpot portal and were skipped: ${input.skippedColumns.join(', ')}.`
     : '';
 
-  const attachEligible = input.fileSizeBytes <= MAX_ATTACHMENT_BYTES && input.filePath;
-  const sizeNotice = attachEligible
-    ? ''
-    : `<p>The file is ${(input.fileSizeBytes / (1024 * 1024)).toFixed(1)} MB - too large to attach, so it is link-only below.</p>`;
+  const runLinkHtml = `<a href="${input.runUrl}">View this run</a>`;
+  const runLinkText = `View this run: ${input.runUrl}`;
 
-  const html = layout(
-    `${input.exportName} is ready`,
-    `${zeroRowsNotice}${skippedNotice}${sizeNotice}<p><a href="${input.downloadUrl}">Download the file</a> (link expires in 7 days).</p>`,
+  const subject = `${input.exportName} — ${rowsFormatted} row${input.rowCount === 1 ? '' : 's'} — ${shortDate(input.date)}`;
+
+  const html = htmlLayout(
+    subject,
+    paragraphsToHtml([summaryHtml, fileHtml, downloadHtml, expiryHtml, skippedHtml, runLinkHtml]),
   );
+  const text = plainTextBody([summaryText, fileText, downloadText, expiryText, skippedText, runLinkText]);
 
   await client().emails.send(
     {
       from: fromAddress(),
       to: input.recipients,
-      subject: `${input.exportName} is ready`,
+      subject,
       html,
+      text,
       attachments: attachEligible
-        ? [{ filename: exportFilename(input.exportName, new Date()), content: await readFile(input.filePath!) }]
+        ? [{ filename: exportFilename(input.exportName, input.date), content: await readFile(input.filePath!) }]
         : undefined,
     },
     { idempotencyKey: input.idempotencyKey },
@@ -155,7 +262,11 @@ export interface FailureEmailInput {
   exportName: string;
   errorCode: string;
   errorMessage: string;
+  /** A link back to this run in the dashboard's run history (defect #3). */
+  runUrl: string;
   reconnectUrl?: string;
+  /** The moment this run failed - drives the subject's date. */
+  date: Date;
 }
 
 const FAILURE_ADVICE: Record<string, string> = {
@@ -184,18 +295,23 @@ export async function sendFailureEmail(input: FailureEmailInput): Promise<void> 
   if (input.recipients.length === 0) return;
 
   const advice = FAILURE_ADVICE[input.errorCode] ?? 'Something went wrong while building your export. Our team has been notified.';
-  const reconnectCta = input.reconnectUrl
-    ? `<p><a href="${input.reconnectUrl}">Reconnect HubSpot</a></p>`
-    : '';
+  const runLinkHtml = `<a href="${input.runUrl}">View this run</a>`;
+  const runLinkText = `View this run: ${input.runUrl}`;
+  const reconnectHtml = input.reconnectUrl ? `<a href="${input.reconnectUrl}">Reconnect HubSpot</a>` : '';
+  const reconnectText = input.reconnectUrl ? `Reconnect HubSpot: ${input.reconnectUrl}` : '';
 
-  const html = layout(`${input.exportName} failed`, `<p>${escapeHtml(advice)}</p>${reconnectCta}`);
+  const subject = `${input.exportName} did not run — ${shortDate(input.date)}`;
+
+  const html = htmlLayout(subject, paragraphsToHtml([escapeHtml(advice), runLinkHtml, reconnectHtml]));
+  const text = plainTextBody([advice, runLinkText, reconnectText]);
 
   await client().emails.send(
     {
       from: fromAddress(),
       to: input.recipients,
-      subject: `${input.exportName} failed`,
+      subject,
       html,
+      text,
     },
     { idempotencyKey: input.idempotencyKey },
   );
@@ -212,22 +328,32 @@ export interface ReconnectEmailInput {
  * reconnect link" - sent once per portal disconnection, to the portal's
  * users (not a specific export's recipients, since this isn't about any one
  * export - see inngest/revocation.ts).
+ *
+ * Defect #3: "the most urgent" of the three - order matters. Say the
+ * exports have STOPPED first (the thing the customer actually feels),
+ * THEN why, THEN what to do about it - not "your connection was revoked"
+ * leading, which reads like a status update rather than the actionable
+ * problem it is.
  */
 export async function sendReconnectEmail(input: ReconnectEmailInput): Promise<void> {
   if (input.recipients.length === 0) return;
 
-  const html = layout(
-    'Reconnect HubSpot',
-    `<p>Your HubSpot connection was disconnected (access was revoked), so all scheduled exports for this portal have been paused.</p>` +
-      `<p><a href="${input.reconnectUrl}">Reconnect HubSpot</a> to resume them.</p>`,
-  );
+  const subject = 'Your CleanExport schedules have stopped';
+  const stoppedHtml = 'Your scheduled exports have stopped running.';
+  const whyHtml = 'This is because your HubSpot connection was disconnected (access was revoked).';
+  const reconnectHtml = `<a href="${input.reconnectUrl}">Reconnect HubSpot</a> to resume them.`;
+  const reconnectText = `Reconnect HubSpot to resume them: ${input.reconnectUrl}`;
+
+  const html = htmlLayout(subject, paragraphsToHtml([stoppedHtml, whyHtml, reconnectHtml]));
+  const text = plainTextBody([stoppedHtml, whyHtml, reconnectText]);
 
   await client().emails.send(
     {
       from: fromAddress(),
       to: input.recipients,
-      subject: 'Reconnect HubSpot to resume your CleanExport schedules',
+      subject,
       html,
+      text,
     },
     { idempotencyKey: input.idempotencyKey },
   );

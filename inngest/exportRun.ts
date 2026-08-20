@@ -77,8 +77,8 @@ import { fetchRecords, type HubSpotRecord, type Filters } from '@/lib/export/fet
 import { resolveAssociations } from '@/lib/export/associations';
 import { writeExport } from '@/lib/export/writer';
 import { loadPropertyDefs, loadOwners } from './propertyDefs';
-import { loadR2Config, uploadFileToR2, deriveObjectKey } from './r2';
-import { sendSuccessEmail, sendFailureEmail, buildReconnectUrl, buildRunDownloadUrl } from './email';
+import { loadR2Config, uploadFileToR2, deriveObjectKey, DOWNLOAD_URL_TTL_SECONDS } from './r2';
+import { sendSuccessEmail, sendFailureEmail, buildReconnectUrl, buildRunDownloadUrl, buildRunHistoryUrl } from './email';
 import { disablePortalOnRevocation } from './revocation';
 import { logger } from '@/lib/logger';
 import { STALE_RUN_MS } from '@/lib/runs';
@@ -243,6 +243,8 @@ export async function exportRunHandler({ event, step }: InngestFn) {
     return {
       alreadyTerminal: false as const,
       portalId: portal.id,
+      // Defect #3: "a customer with two portals must know which this is."
+      portalDomain: portal.hubDomain,
       exportId: exportDef.id,
       exportName: exportDef.name,
       objectType: exportDef.objectType,
@@ -363,10 +365,20 @@ export async function exportRunHandler({ event, step }: InngestFn) {
       recipients: setup.recipients,
       idempotencyKey: `export-run-${exportRunId}`,
       exportName: setup.exportName,
+      // Defect #3: named plainly, not the raw ObjectType enum value.
+      objectTypeLabel: DISPLAY_OBJECT_TYPE[setup.objectType] ?? setup.objectType,
+      portalDomain: setup.portalDomain,
       rowCount: writeResult.rowCount,
       // Defect #2: our own portal-scoped, re-signing route - never a raw R2
       // URL (see inngest/email.ts's buildRunDownloadUrl for why).
       downloadUrl: buildRunDownloadUrl(exportRunId),
+      runUrl: buildRunHistoryUrl(setup.exportId),
+      // Defect #3: "the expiry AS A DATE, not 'in 7 days'." Approximate
+      // (finishedAt isn't written until the 'mark-success' step after this
+      // one - see that step below), off by however long the upload step
+      // itself took, which is the same clock-skew the download route's own
+      // independent finishedAt-based expiry calculation already carries.
+      expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000),
       skippedColumns: writeResult.skippedColumns,
       // Both required for the 8 MB rule (spec section 9): sendSuccessEmail's
       // attachEligible check is `fileSizeBytes <= 8MB && filePath` - omitting
@@ -375,6 +387,7 @@ export async function exportRunHandler({ event, step }: InngestFn) {
       // attached and every run showed the "too large to attach" notice.
       filePath: writeResult.filePath,
       fileSizeBytes: uploaded.sizeBytes,
+      date: new Date(),
     }),
   );
 
@@ -444,7 +457,9 @@ export async function exportRunOnFailure({ event, error, step }: OnFailureFn) {
       exportName: exportDef.name,
       errorCode: failure.code,
       errorMessage: failure.message,
+      runUrl: buildRunHistoryUrl(exportDef.id),
       reconnectUrl: failure.code === ErrorCode.TOKEN_REVOKED ? buildReconnectUrl() : undefined,
+      date: new Date(),
     });
   });
 

@@ -688,11 +688,16 @@ describe('inngest/email.ts sendSuccessEmail - requirement 6: the 8 MB attachment
       recipients: ['user@example.com'],
       idempotencyKey: 'under-8mb',
       exportName: 'Small Export',
+      objectTypeLabel: 'Contacts',
+      portalDomain: 'example.hubspot.com',
       rowCount: 10,
       downloadUrl: 'https://example.com/download',
+      runUrl: 'https://app.example.com/dashboard/runs?exportId=export-1',
+      expiresAt: new Date('2026-08-27T00:00:00Z'),
       skippedColumns: [],
       filePath,
       fileSizeBytes: 8 * 1024 * 1024, // exactly at the threshold
+      date: new Date('2026-08-20T12:00:00Z'),
     });
 
     const payload = lastPayloadByKey.get('under-8mb') as { attachments?: unknown[]; html: string };
@@ -709,12 +714,17 @@ describe('inngest/email.ts sendSuccessEmail - requirement 6: the 8 MB attachment
       recipients: ['user@example.com'],
       idempotencyKey: 'over-8mb',
       exportName: 'Big Export',
+      objectTypeLabel: 'Contacts',
+      portalDomain: 'example.hubspot.com',
       rowCount: 500_000,
       downloadUrl: 'https://example.com/download-big',
+      runUrl: 'https://app.example.com/dashboard/runs?exportId=export-1',
+      expiresAt: new Date('2026-08-27T00:00:00Z'),
       skippedColumns: [],
       // no filePath needed - attachEligible short-circuits to false before it
       // would ever be read.
       fileSizeBytes: 9 * 1024 * 1024,
+      date: new Date('2026-08-20T12:00:00Z'),
     });
 
     const payload = lastPayloadByKey.get('over-8mb') as { attachments?: unknown[]; html: string };
