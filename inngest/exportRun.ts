@@ -350,8 +350,12 @@ export async function exportRunHandler({ event, step }: InngestFn) {
       data: { fileKey: key, fileSizeBytes: sizeBytes },
     });
 
-    await unlink(writeResult.filePath).catch(() => undefined);
-
+    // The temp file is NOT deleted here - defect #1 fix: the success email
+    // (next step) needs to read it from disk to attach it when it's at or
+    // under the 8 MB threshold (specs/05-EXPORT-ENGINE.md section 9). It was
+    // previously unlinked in this same step, before the email step ever ran,
+    // so a passed-through filePath would have pointed at a file that no
+    // longer existed - see the 'cleanup-temp-file' step below instead.
     return { key, sizeBytes, downloadUrl };
   });
 
@@ -363,9 +367,19 @@ export async function exportRunHandler({ event, step }: InngestFn) {
       rowCount: writeResult.rowCount,
       downloadUrl: uploaded.downloadUrl,
       skippedColumns: writeResult.skippedColumns,
+      // Both required for the 8 MB rule (spec section 9): sendSuccessEmail's
+      // attachEligible check is `fileSizeBytes <= 8MB && filePath` - omitting
+      // filePath here (as this call previously did) makes attachEligible
+      // false unconditionally, regardless of size, so no file was EVER
+      // attached and every run showed the "too large to attach" notice.
+      filePath: writeResult.filePath,
       fileSizeBytes: uploaded.sizeBytes,
     }),
   );
+
+  // Deferred until after the email is sent (see the 'upload' step above) -
+  // reading the file to attach it must happen before it's deleted.
+  await step.run('cleanup-temp-file', () => unlink(writeResult.filePath).catch(() => undefined));
 
   await step.run('mark-success', () =>
     prisma.exportRun.updateMany({

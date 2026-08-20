@@ -598,6 +598,59 @@ describe('exportRunHandler - requirement 5: NO_RECIPIENTS', () => {
   });
 });
 
+// Defect #1 ("the 8 MB rule is broken - a paying customer never receives
+// their file"): tests/inngest/exportRun.test.ts's own "requirement 6" block
+// below calls sendSuccessEmail DIRECTLY with a hand-supplied filePath - that
+// passed even while the real caller, exportRunHandler's 'send-success-email'
+// step, never passed filePath at all (so attachEligible was unconditionally
+// false) and unlinked the temp file in the 'upload' step BEFORE the email
+// step could have read it even if it had been passed. Neither bug shows up
+// unless the assertion sits at the actual integration point: the real
+// exportRunHandler, through to the real Resend payload.
+describe('exportRunHandler - defect #1: a small real export is actually attached, not just linked', () => {
+  it('a 1-row export (well under 8 MB) reaches Resend WITH an attachment, and the size passed is the real uploaded size, never 0', async () => {
+    const fakePrisma = makeFakePrisma({ portal: makePortal(), exportDef: makeExportDef(), run: makeRun() });
+    await setPrisma(fakePrisma);
+
+    let uploadedContentLength: number | null = null;
+    const fetchMock = makeFakeFetch({
+      records: [{ id: 'c1', properties: { firstname: 'Ada' } }],
+      onRequest: (url, init) => {
+        if (url.includes('.r2.cloudflarestorage.com') && init?.method === 'PUT') {
+          uploadedContentLength = Number(
+            (init.headers as Record<string, string>)['content-length'],
+          );
+        }
+        return null; // fall through to makeFakeFetch's own default R2 200 response
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    tempFilesToClean.push(join(tmpdir(), 'cleanexport-run-run-1.xlsx'));
+
+    await exportRunHandler({ event: RUN_EVENT, step: makeStep() });
+
+    // The real file R2 actually received was not empty - this is what a
+    // caller-side `fileSizeBytes: 0` or `undefined` would fail.
+    expect(uploadedContentLength).not.toBeNull();
+    expect(uploadedContentLength).toBeGreaterThan(0);
+    expect(uploadedContentLength).toBeLessThan(8 * 1024 * 1024);
+
+    // The size recorded on the run is that same real, non-zero size.
+    expect(fakePrisma.state.runs.get('run-1')!.fileSizeBytes).toBe(uploadedContentLength);
+
+    // And the email Resend actually received has the attachment - not just
+    // a "too large" notice for a file that plainly is not too large.
+    const payload = lastPayloadByKey.get('export-run-run-1') as {
+      attachments?: { filename: string; content: Buffer }[];
+      html: string;
+    };
+    expect(payload.attachments).toHaveLength(1);
+    expect(payload.attachments![0].content.length).toBeGreaterThan(0);
+    expect(payload.html).not.toContain('too large to attach');
+    expect(payload.html).not.toContain('0.0 MB');
+  });
+});
+
 describe('inngest/email.ts sendSuccessEmail - requirement 6: the 8 MB attachment rule', () => {
   it('a file at or under 8 MB is attached AND linked', async () => {
     const { sendSuccessEmail } = await import('@/inngest/email');
