@@ -4,6 +4,7 @@ import { useState } from "react"
 import { buildExportPayload, canPreview } from "@/components/exports/payload"
 import type { BuilderState } from "@/components/exports/types"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 /**
  * Mirrors lib/exportPreview.ts's PreviewColumn/PreviewCellValue - a plain
@@ -123,18 +124,26 @@ function PreviewTable({ columns, sampleRows }: PreviewResponse) {
         <tbody>
           {sampleRows.map((row, rowIndex) => (
             <tr key={rowIndex} className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/30">
-              {row.map((value, colIndex) => (
-                <td
-                  key={colIndex}
-                  // specs/07-TASKS.md T18: "multi-line values render with
-                  // their line breaks visible" - whitespace-pre-wrap
-                  // preserves a real \n as a real line break, the entire
-                  // point of the product (specs/05-EXPORT-ENGINE.md section 3).
-                  className="max-w-xs px-2.5 py-2 align-top whitespace-pre-wrap"
-                >
-                  {formatPreviewValue(value, columns[colIndex].type)}
-                </td>
-              ))}
+              {row.map((value, colIndex) => {
+                const type = columns[colIndex].type;
+                return (
+                  <td
+                    key={colIndex}
+                    // specs/07-TASKS.md T18: "multi-line values render with
+                    // their line breaks visible" - whitespace-pre-wrap
+                    // preserves a real \n as a real line break, the entire
+                    // point of the product (specs/05-EXPORT-ENGINE.md section 3).
+                    // Numbers/dates get the monospace/tabular treatment -
+                    // text values don't.
+                    className={cn(
+                      "max-w-xs px-2.5 py-2 align-top whitespace-pre-wrap",
+                      (type === "number" || type === "date" || type === "datetime") && "font-mono tabular-nums",
+                    )}
+                  >
+                    {formatPreviewValue(value, type)}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>

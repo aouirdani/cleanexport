@@ -49,32 +49,35 @@
 }
 
 :root {
-  /* Reference: ~/dev/design-ref/b2b-data-export-dashboard/src/index.css.
-     Values only - these ARE our token names, so every existing
-     bg-background/text-foreground/border-border className etc. keeps
-     working unchanged. */
-  --card: #ffffff; /* reference --surface */
-  --card-foreground: #18181b; /* reference --foreground */
-  --popover: #ffffff; /* reference --surface */
-  --popover-foreground: #18181b; /* reference --foreground */
-  --primary: #6366f1; /* reference --primary (indigo) */
-  --primary-foreground: #ffffff; /* reference --primary-foreground */
-  --secondary: #f5f5f5; /* reference --surface-2 */
-  --secondary-foreground: #18181b; /* reference --foreground */
-  --muted: #f5f5f5; /* reference --surface-2 */
-  --muted-foreground: #71717a; /* reference --muted-foreground */
-  --accent: #f5f5f5; /* reference --surface-2 */
-  --accent-foreground: #18181b; /* reference --foreground */
-  --destructive: #b91c1c; /* reference --danger */
-  --border: #e4e4e7; /* reference --border */
-  --input: #d4d4d8; /* reference --border-strong */
-  --ring: #6366f1; /* reference focuses :focus-visible on --primary directly */
+  /* Stripe Dashboard visual language pass. Values only - these ARE our
+     token names, so every existing bg-background/text-foreground/
+     border-border className etc. keeps working unchanged. Light-first:
+     near-white page background, white surfaces, hairline borders (not
+     shadows) for depth, one indigo-violet accent reserved for primary
+     buttons/focus rings/selected rows, and a cool (slightly blue) grey
+     scale everywhere else instead of a neutral one. */
+  --card: #ffffff; /* was #ffffff - unchanged, surfaces stay white */
+  --card-foreground: #1a1f36; /* was #18181b - Stripe's cool ink, not neutral black */
+  --popover: #ffffff; /* was #ffffff - unchanged */
+  --popover-foreground: #1a1f36; /* was #18181b */
+  --primary: #635bff; /* was #6366f1 - Stripe's indigo-violet, THE one accent */
+  --primary-foreground: #ffffff; /* unchanged */
+  --secondary: #f0f2f5; /* was #f5f5f5 - cool grey, not neutral */
+  --secondary-foreground: #1a1f36; /* was #18181b */
+  --muted: #f0f2f5; /* was #f5f5f5 */
+  --muted-foreground: #6b7280; /* was #71717a - cool slate, one more step in the grey scale */
+  --accent: #f0f2f5; /* was #f5f5f5 */
+  --accent-foreground: #1a1f36; /* was #18181b */
+  --destructive: #d1193f; /* was #b91c1c - Stripe-red rather than a brick red */
+  --border: #e3e8ee; /* was #e4e4e7 - the hairline that replaces shadows for depth */
+  --input: #cbd2d9; /* was #d4d4d8 - one step darker than --border, for form-control edges */
+  --ring: #635bff; /* was #6366f1 - matches --primary */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem; /* unchanged - matches reference exactly */
+  --radius: 0.5rem; /* was 0.625rem - Stripe's tighter, less-rounded corners */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -83,29 +86,32 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --background: #fafafa; /* reference --background */
-  --foreground: #18181b; /* reference --foreground */
+  --background: #f6f8fb; /* was #fafafa - near-white with a cool tint, not neutral */
+  --foreground: #1a1f36; /* was #18181b */
 }
 
 .dark {
-  --background: #09090b; /* reference --background */
-  --foreground: #fafafa; /* reference --foreground */
-  --card: #111113; /* reference --surface */
-  --card-foreground: #fafafa; /* reference --foreground */
-  --popover: #111113; /* reference --surface */
-  --popover-foreground: #fafafa; /* reference --foreground */
-  --primary: #6366f1; /* reference --primary - same indigo in both modes */
-  --primary-foreground: #ffffff; /* reference --primary-foreground */
-  --secondary: #18181b; /* reference --surface-2 */
-  --secondary-foreground: #fafafa; /* reference --foreground */
-  --muted: #18181b; /* reference --surface-2 */
-  --muted-foreground: #a1a1aa; /* reference --muted-foreground */
-  --accent: #18181b; /* reference --surface-2 */
-  --accent-foreground: #fafafa; /* reference --foreground */
-  --destructive: #f87171; /* reference --danger */
-  --border: #27272a; /* reference --border */
-  --input: #3f3f46; /* reference --border-strong */
-  --ring: #6366f1; /* reference --primary */
+  /* Kept working, not redesigned - the brief is "design for light." Only
+     --primary/--ring shift, to match the new indigo-violet accent used in
+     light mode; everything else is untouched from before this pass. */
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #111113;
+  --card-foreground: #fafafa;
+  --popover: #111113;
+  --popover-foreground: #fafafa;
+  --primary: #635bff; /* was #6366f1 - same accent as light mode */
+  --primary-foreground: #ffffff;
+  --secondary: #18181b;
+  --secondary-foreground: #fafafa;
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
+  --accent: #18181b;
+  --accent-foreground: #fafafa;
+  --destructive: #f87171;
+  --border: #27272a;
+  --input: #3f3f46;
+  --ring: #635bff; /* was #6366f1 */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

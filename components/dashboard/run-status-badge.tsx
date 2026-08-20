@@ -1,5 +1,5 @@
-import { Clock, RefreshCw, CircleCheck, CircleX, CircleSlash, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 /**
  * A plain string union, not the Prisma `RunStatus` enum: this file is
@@ -27,12 +27,16 @@ const VARIANT: Record<RunStatusValue, "success" | "destructive" | "secondary" | 
   CANCELLED: "outline",
 }
 
-const ICON: Record<RunStatusValue, typeof Clock> = {
-  QUEUED: Clock,
-  RUNNING: RefreshCw,
-  SUCCESS: CircleCheck,
-  FAILED: CircleX,
-  CANCELLED: CircleSlash,
+/** A small solid dot, colored to match the badge's own variant - Stripe's
+ *  own status pills carry the state in color + text alone, never a per-
+ *  status icon set (Clock/RefreshCw/CircleCheck/... was decoration once the
+ *  badge's color and label already say the same thing twice). */
+const DOT: Record<RunStatusValue, string> = {
+  QUEUED: "bg-muted-foreground/50",
+  RUNNING: "bg-foreground/60",
+  SUCCESS: "bg-emerald-500",
+  FAILED: "bg-destructive",
+  CANCELLED: "bg-muted-foreground/50",
 }
 
 /**
@@ -47,16 +51,15 @@ export function RunStatusBadge({ status, stale = false }: { status: RunStatusVal
   if (stale && (status === "QUEUED" || status === "RUNNING")) {
     return (
       <Badge variant="destructive">
-        <TriangleAlert aria-hidden />
+        <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
         Stalled
       </Badge>
     )
   }
 
-  const Icon = ICON[status]
   return (
     <Badge variant={VARIANT[status]}>
-      <Icon aria-hidden className={status === "RUNNING" ? "animate-spin" : undefined} />
+      <span aria-hidden className={cn("size-1.5 rounded-full", DOT[status], status === "RUNNING" && "animate-pulse")} />
       {LABEL[status]}
     </Badge>
   )

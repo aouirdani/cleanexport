@@ -107,7 +107,7 @@ function RunRowView({ run }: { run: RunRow }) {
         <td className="py-3 pr-4">
           <RunStatusBadge status={run.status} stale={run.stale} />
         </td>
-        <td className="py-3 pr-4 tabular-nums whitespace-nowrap text-muted-foreground">
+        <td className="py-3 pr-4 font-mono text-[13px] tabular-nums whitespace-nowrap text-muted-foreground">
           {formatDateTime(run.startedAt ?? run.createdAt)}
         </td>
         <td className="py-3 pr-4 font-mono text-[13px] tabular-nums whitespace-nowrap text-muted-foreground">

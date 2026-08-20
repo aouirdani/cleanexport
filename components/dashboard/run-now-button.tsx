@@ -64,7 +64,11 @@ export function RunNowButton({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button size="sm" onClick={handleRun} disabled={disabled}>
+      {/* outline, not the default (primary/indigo) variant: this button
+          repeats once per row, and "New export" is the one primary action
+          on this screen (app/(app)/dashboard/page.tsx) - a row action is
+          never the primary one. */}
+      <Button size="sm" variant="outline" onClick={handleRun} disabled={disabled}>
         {pending ? "Starting…" : alreadyInFlight ? "Running…" : "Run now"}
       </Button>
       {/* specs/07-TASKS.md: "when the plan limit is hit, say which limit and

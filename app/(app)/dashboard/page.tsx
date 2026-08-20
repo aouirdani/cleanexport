@@ -15,7 +15,7 @@ import { RunStatusBadge, type RunStatusValue } from "@/components/dashboard/run-
 import { RunNowButton } from "@/components/dashboard/run-now-button"
 import { formatDateTime, describeSchedule } from "@/components/dashboard/format"
 import { Badge } from "@/components/ui/badge"
-import { Table2, Plus, TriangleAlert } from "lucide-react"
+import { Table2, Plus } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
@@ -79,7 +79,7 @@ export default async function DashboardPage() {
               return (
                 <li
                   key={exportDef.id}
-                  className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 px-5 py-3.5 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-medium">{exportDef.name}</p>
@@ -87,20 +87,16 @@ export default async function DashboardPage() {
                       <span>{OBJECT_TYPE_LABEL[exportDef.objectType] ?? exportDef.objectType}</span>
                       <span aria-hidden>·</span>
                       {schedule === "MANUAL" && <span>Manual only</span>}
-                      {schedule === "SCHEDULED" && <span>{`Scheduled (${exportDef.scheduleTz})`}</span>}
-                      {schedule === "INVALID" && (
-                        <Badge variant="destructive">
-                          <TriangleAlert aria-hidden />
-                          Schedule needs attention
-                        </Badge>
+                      {schedule === "SCHEDULED" && (
+                        <span>
+                          Scheduled (<span className="font-mono">{exportDef.scheduleTz}</span>)
+                        </span>
                       )}
+                      {schedule === "INVALID" && <Badge variant="destructive">Schedule needs attention</Badge>}
                     </p>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       {exportDef.recipients.length === 0 ? (
-                        <Badge variant="destructive">
-                          <TriangleAlert aria-hidden />
-                          No recipients - runs will fail
-                        </Badge>
+                        <Badge variant="destructive">No recipients - runs will fail</Badge>
                       ) : (
                         <>Sends to {exportDef.recipients.join(", ")}</>
                       )}
@@ -110,7 +106,7 @@ export default async function DashboardPage() {
                     {latest ? (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <RunStatusBadge status={latest.status as RunStatusValue} stale={latest.stale} />
-                        <span className="tabular-nums">{formatDateTime(latest.finishedAt ?? latest.createdAt)}</span>
+                        <span className="font-mono tabular-nums">{formatDateTime(latest.finishedAt ?? latest.createdAt)}</span>
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">Never run</span>
