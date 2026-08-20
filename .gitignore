@@ -33,3 +33,7 @@ recon/sample-records.json
 
 /app/generated/prisma
 lib/generated/
+
+# tous les fichiers env, quel que soit le suffixe
+.env*
+!.env.example
