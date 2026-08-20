@@ -12,6 +12,7 @@
  * on" - the lightest check that satisfies the requirement.
  */
 import Link from "next/link"
+import Image from "next/image"
 import { readSession } from "@/lib/session"
 import { Button } from "@/components/ui/button"
 
@@ -115,7 +116,7 @@ export default async function LandingPage() {
     <div className="flex flex-1 flex-col bg-background text-foreground">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-          <span className="text-sm font-semibold tracking-tight">CleanExport</span>
+          <Image src="/logo.png" alt="CleanExport" width={78} height={28} priority />
           {signedIn && (
             <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
               Go to dashboard
