@@ -1,0 +1,58 @@
+name: CI
+
+# Defect #5: "685 tests that only run when someone remembers." Every push
+# and pull request now runs typecheck/lint/test/build automatically -
+# nothing here deploys (Vercel already does that on its own).
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      # Every one of these is read lazily (inside a function, at request
+      # time), never at module load - so a dummy value here is only ever
+      # exercised by `prisma generate` (schema-only, no live DB needed) and
+      # by `next build`'s static analysis, neither of which opens a real
+      # connection or calls an external API. Real secrets live in Vercel's
+      # own environment, not here.
+      DATABASE_URL: "postgresql://user:password@localhost:5432/cleanexport?sslmode=disable"
+      ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+      SESSION_SECRET: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+      HUBSPOT_CLIENT_ID: "test-client-id"
+      HUBSPOT_CLIENT_SECRET: "test-client-secret"
+      HUBSPOT_REDIRECT_URI: "http://localhost:3000/api/auth/hubspot/callback"
+      HUBSPOT_SCOPES: "oauth crm.objects.contacts.read"
+      STRIPE_SECRET_KEY: "sk_test_dummy"
+      STRIPE_WEBHOOK_SECRET: "whsec_dummy"
+      STRIPE_PRICE_ID_MONTHLY: "price_dummy_monthly"
+      STRIPE_PRICE_ID_YEARLY: "price_dummy_yearly"
+      RESEND_API_KEY: "re_dummy"
+      R2_ACCOUNT_ID: "dummy-account"
+      R2_ACCESS_KEY_ID: "dummy-access-key"
+      R2_SECRET_ACCESS_KEY: "dummy-secret-key"
+      R2_BUCKET: "dummy-bucket"
+      R2_OBJECT_KEY_SECRET: "dummy-object-key-secret"
+      APP_URL: "http://localhost:3000"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run typecheck
+
+      - run: pnpm run lint
+
+      - run: pnpm run test
+
+      - run: pnpm run build
