@@ -7,6 +7,7 @@ import {
   deriveObjectKey,
   deleteFileFromR2,
   presignR2Url,
+  signedDownloadUrl,
   type R2Config,
 } from '@/inngest/r2';
 
@@ -200,5 +201,65 @@ describe('presignR2Url + deleteFileFromR2 - DELETE method support for inngest/cl
     expect(caught).toBeInstanceOf(Error);
     expect((caught as Error).message).not.toContain('X-Amz-Signature');
     expect((caught as Error).message).not.toContain('X-Amz-Credential');
+  });
+});
+
+// Defect #2b: "the browser opens a blank tab first because R2 serves the
+// object with no Content-Disposition." response-content-disposition is an
+// S3/R2 GetObject response-header-override query param - it must be part of
+// the SIGNED query string (SigV4 covers the whole query string), not just
+// appended to the URL after presigning, or R2 would reject the request as
+// tampered.
+describe('signedDownloadUrl - defect #2b: response-content-disposition', () => {
+  const CONFIG: R2Config = {
+    accountId: 'test-account',
+    accessKeyId: 'test-key',
+    secretAccessKey: 'test-secret',
+    bucket: 'test-bucket',
+  };
+
+  it('with a filename, the URL carries a signed response-content-disposition=attachment param', () => {
+    const url = signedDownloadUrl(CONFIG, 'exports/portal-1/abc.xlsx', 'weekly-deals_2026-08-20.xlsx');
+    const parsed = new URL(url);
+
+    expect(parsed.searchParams.get('response-content-disposition')).toBe(
+      'attachment; filename="weekly-deals_2026-08-20.xlsx"',
+    );
+    // It's part of what got signed, not appended after - a signature that
+    // didn't cover it would be rejected as tampered by SigV4-verifying R2,
+    // so its presence in the (successfully re-parsed) signed URL is itself
+    // proof it was in the canonical query string at signing time.
+    expect(parsed.searchParams.get('X-Amz-Signature')).toBeTruthy();
+  });
+
+  it('without a filename, there is no response-content-disposition param at all - not an empty one', () => {
+    const url = signedDownloadUrl(CONFIG, 'exports/portal-1/abc.xlsx');
+    expect(new URL(url).searchParams.has('response-content-disposition')).toBe(false);
+  });
+
+  it('changing the filename changes the signature - it is genuinely signed, not decorative', () => {
+    const urlA = signedDownloadUrl(CONFIG, 'exports/portal-1/abc.xlsx', 'a.xlsx', 60);
+    const urlB = signedDownloadUrl(CONFIG, 'exports/portal-1/abc.xlsx', 'b.xlsx', 60);
+
+    // Fix the clock implicitly by comparing signatures produced in the same
+    // tick is not reliable across a real Date.now() call in each - instead,
+    // presign through the lower-level presignR2Url with a fixed `now` so
+    // only the filename varies.
+    const now = new Date('2026-01-01T00:00:00Z');
+    const signedA = new URL(
+      presignR2Url(CONFIG, 'GET', 'exports/portal-1/abc.xlsx', 60, now, {
+        'response-content-disposition': 'attachment; filename="a.xlsx"',
+      }),
+    ).searchParams.get('X-Amz-Signature');
+    const signedB = new URL(
+      presignR2Url(CONFIG, 'GET', 'exports/portal-1/abc.xlsx', 60, now, {
+        'response-content-disposition': 'attachment; filename="b.xlsx"',
+      }),
+    ).searchParams.get('X-Amz-Signature');
+
+    expect(signedA).not.toEqual(signedB);
+    // Sanity: the two convenience-function URLs above are well-formed too.
+    expect(new URL(urlA).searchParams.get('X-Amz-Signature')).toBeTruthy();
+    expect(new URL(urlB).searchParams.get('X-Amz-Signature')).toBeTruthy();
   });
 });

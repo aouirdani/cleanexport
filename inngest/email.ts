@@ -35,6 +35,22 @@ export function buildReconnectUrl(): string {
   return `${base}/dashboard`;
 }
 
+/**
+ * Defect #2: the success email used to link straight to a presigned R2 URL
+ * - a customer's browser opened a blank tab first (R2 serves the object
+ * with no Content-Disposition of its own), and the link exposed the
+ * storage backend's hostname and an X-Amz-Credential query param besides.
+ * app/api/runs/[id]/download/route.ts already exists, is portal-scoped and
+ * tested, and re-signs a fresh R2 URL (this time WITH a Content-Disposition
+ * - see inngest/r2.ts's signedDownloadUrl) on every request rather than
+ * embedding one that can go stale - so the email links here instead, a
+ * short, readable, never-expiring-on-its-own-face URL.
+ */
+export function buildRunDownloadUrl(exportRunId: string): string {
+  const base = process.env.APP_URL ?? 'http://localhost:3000';
+  return `${base}/api/runs/${exportRunId}/download`;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -92,7 +108,9 @@ export async function sendSuccessEmail(input: SuccessEmailInput): Promise<void> 
       to: input.recipients,
       subject: `${input.exportName} is ready`,
       html,
-      attachments: attachEligible ? [{ filename: attachmentFilename(input.exportName), content: await readFile(input.filePath!) }] : undefined,
+      attachments: attachEligible
+        ? [{ filename: exportFilename(input.exportName, new Date()), content: await readFile(input.filePath!) }]
+        : undefined,
     },
     { idempotencyKey: input.idempotencyKey },
   );
@@ -117,9 +135,18 @@ export function slugify(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-function attachmentFilename(exportName: string): string {
-  const date = new Date().toISOString().slice(0, 10);
-  return `${slugify(exportName)}_${date}.xlsx`;
+/**
+ * The one place that builds the `{export-name}_{YYYY-MM-DD}.xlsx` filename
+ * (spec section 9) - shared by the attachment built here AND
+ * app/api/runs/[id]/download/route.ts's Content-Disposition (defect #2),
+ * so a file downloaded from the email attachment and one downloaded later
+ * from the dashboard/re-signed link have the exact same name. `date` is a
+ * parameter, not read internally, so both callers can be explicit about
+ * which date they mean (generation time here; the run's own finishedAt for
+ * a link clicked well after the email was sent).
+ */
+export function exportFilename(exportName: string, date: Date): string {
+  return `${slugify(exportName)}_${date.toISOString().slice(0, 10)}.xlsx`;
 }
 
 export interface FailureEmailInput {

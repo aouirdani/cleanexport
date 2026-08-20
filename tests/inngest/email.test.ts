@@ -22,7 +22,8 @@ vi.mock('resend', () => ({
   }),
 }));
 
-const { slugify, sendSuccessEmail, sendFailureEmail, sendReconnectEmail } = await import('@/inngest/email');
+const { slugify, sendSuccessEmail, sendFailureEmail, sendReconnectEmail, exportFilename, buildRunDownloadUrl } =
+  await import('@/inngest/email');
 
 beforeEach(() => {
   process.env.RESEND_API_KEY = 'test-resend-key';
@@ -188,5 +189,33 @@ describe('sendReconnectEmail', () => {
   it('sends nothing when there are no recipients', async () => {
     await sendReconnectEmail({ recipients: [], idempotencyKey: 'reconnect-empty', reconnectUrl: 'https://app.example.com/dashboard' });
     expect(lastPayloadByKey.has('reconnect-empty')).toBe(false);
+  });
+});
+
+// Defect #2: shared by the attachment (sendSuccessEmail, above) and
+// app/api/runs/[id]/download/route.ts's Content-Disposition, so a file
+// downloaded from the email and one re-downloaded later from the dashboard
+// have the exact same name.
+describe('exportFilename - {export-name}_{YYYY-MM-DD}.xlsx, date given explicitly', () => {
+  it('slugifies the name and formats the given date, not "today"', () => {
+    expect(exportFilename('Départ Clients Été', new Date('2026-08-20T23:59:00Z'))).toBe(
+      'depart-clients-ete_2026-08-20.xlsx',
+    );
+  });
+});
+
+describe('buildRunDownloadUrl - defect #2: our own route, never a raw R2 URL', () => {
+  afterEach(() => {
+    delete process.env.APP_URL;
+  });
+
+  it('builds /api/runs/:id/download under APP_URL', () => {
+    process.env.APP_URL = 'https://app.example.com';
+    expect(buildRunDownloadUrl('run-123')).toBe('https://app.example.com/api/runs/run-123/download');
+  });
+
+  it('falls back to localhost:3000 when APP_URL is unset', () => {
+    delete process.env.APP_URL;
+    expect(buildRunDownloadUrl('run-123')).toBe('http://localhost:3000/api/runs/run-123/download');
   });
 });

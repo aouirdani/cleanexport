@@ -651,6 +651,31 @@ describe('exportRunHandler - defect #1: a small real export is actually attached
   });
 });
 
+// Defect #2 ("the download link opens a blank tab"): the success email must
+// link to OUR OWN /api/runs/:id/download route (short, portal-scoped,
+// re-signs per click), never straight to a presigned R2 URL - which would
+// expose the storage backend's hostname and an X-Amz-Credential besides.
+// Asserted at the same integration point as defect #1: the real
+// exportRunHandler's actual Resend payload.
+describe('exportRunHandler - defect #2: the email links to our own download route, not raw R2', () => {
+  it('the email body contains an APP_URL-based /api/runs/:id/download link and never an r2.cloudflarestorage.com one', async () => {
+    process.env.APP_URL = 'https://app.example.com';
+    const fakePrisma = makeFakePrisma({ portal: makePortal(), exportDef: makeExportDef(), run: makeRun() });
+    await setPrisma(fakePrisma);
+    vi.stubGlobal('fetch', makeFakeFetch({ records: [{ id: 'c1', properties: { firstname: 'Ada' } }] }));
+    tempFilesToClean.push(join(tmpdir(), 'cleanexport-run-run-1.xlsx'));
+
+    await exportRunHandler({ event: RUN_EVENT, step: makeStep() });
+
+    const payload = lastPayloadByKey.get('export-run-run-1') as { html: string };
+    expect(payload.html).toContain('https://app.example.com/api/runs/run-1/download');
+    expect(payload.html).not.toContain('r2.cloudflarestorage.com');
+    expect(payload.html).not.toContain('X-Amz-Credential');
+
+    delete process.env.APP_URL;
+  });
+});
+
 describe('inngest/email.ts sendSuccessEmail - requirement 6: the 8 MB attachment rule', () => {
   it('a file at or under 8 MB is attached AND linked', async () => {
     const { sendSuccessEmail } = await import('@/inngest/email');

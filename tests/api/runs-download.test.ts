@@ -55,6 +55,7 @@ describe('GET /api/runs/[id]/download', () => {
       status: RunStatus.SUCCESS,
       fileKey: 'exports/portal-1/secret-token.xlsx',
       finishedAt: new Date(Date.now() - 60_000), // one minute ago, well inside the window
+      export: { name: 'Weekly deals' },
     });
 
     const res = await GET(new Request('http://localhost/api/runs/run-1/download'), ctx('run-1'));
@@ -64,10 +65,19 @@ describe('GET /api/runs/[id]/download', () => {
     // Scoped by portalId in the query itself, not checked after an unscoped lookup.
     expect(findFirstMock).toHaveBeenCalledWith({
       where: { id: 'run-1', portalId: 'portal-1' },
-      select: { status: true, fileKey: true, finishedAt: true },
+      select: { status: true, fileKey: true, finishedAt: true, export: { select: { name: true } } },
     });
     // Generated fresh on this request - never read back from a stored column.
     expect(signedDownloadUrlMock).toHaveBeenCalledTimes(1);
+    // Defect #2b: the filename passed to signedDownloadUrl (which turns it
+    // into response-content-disposition=attachment - see inngest/r2.ts) is
+    // the same slugified {export-name}_{date}.xlsx the email attachment
+    // uses, not the opaque R2 object key.
+    expect(signedDownloadUrlMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'exports/portal-1/secret-token.xlsx',
+      expect.stringMatching(/^weekly-deals_\d{4}-\d{2}-\d{2}\.xlsx$/),
+    );
   });
 
   it('returns 404, not 403, for a run id that belongs to another portal - indistinguishable from a run that does not exist', async () => {
@@ -125,6 +135,7 @@ describe('GET /api/runs/[id]/download', () => {
       status: RunStatus.SUCCESS,
       fileKey: 'exports/portal-1/secret-token.xlsx',
       finishedAt: new Date(Date.now() - (7 * 24 * 60 * 60 * 1000 - 1000)),
+      export: { name: 'Weekly deals' },
     });
 
     const res = await GET(new Request('http://localhost/api/runs/run-1/download'), ctx('run-1'));
@@ -138,6 +149,7 @@ describe('GET /api/runs/[id]/download', () => {
       status: RunStatus.SUCCESS,
       fileKey: 'exports/portal-1/secret-token.xlsx',
       finishedAt: new Date(Date.now() - 60_000),
+      export: { name: 'Weekly deals' },
     });
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);

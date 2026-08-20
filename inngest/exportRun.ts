@@ -77,8 +77,8 @@ import { fetchRecords, type HubSpotRecord, type Filters } from '@/lib/export/fet
 import { resolveAssociations } from '@/lib/export/associations';
 import { writeExport } from '@/lib/export/writer';
 import { loadPropertyDefs, loadOwners } from './propertyDefs';
-import { loadR2Config, uploadFileToR2, signedDownloadUrl, deriveObjectKey } from './r2';
-import { sendSuccessEmail, sendFailureEmail, buildReconnectUrl } from './email';
+import { loadR2Config, uploadFileToR2, deriveObjectKey } from './r2';
+import { sendSuccessEmail, sendFailureEmail, buildReconnectUrl, buildRunDownloadUrl } from './email';
 import { disablePortalOnRevocation } from './revocation';
 import { logger } from '@/lib/logger';
 import { STALE_RUN_MS } from '@/lib/runs';
@@ -343,7 +343,6 @@ export async function exportRunHandler({ event, step }: InngestFn) {
     // deriveObjectKey's own comment for why this isn't just the run id.
     const key = deriveObjectKey(setup.portalId, exportRunId);
     const { sizeBytes } = await uploadFileToR2(r2, writeResult.filePath, key);
-    const downloadUrl = signedDownloadUrl(r2, key);
 
     await prisma.exportRun.update({
       where: { id: exportRunId },
@@ -356,7 +355,7 @@ export async function exportRunHandler({ event, step }: InngestFn) {
     // previously unlinked in this same step, before the email step ever ran,
     // so a passed-through filePath would have pointed at a file that no
     // longer existed - see the 'cleanup-temp-file' step below instead.
-    return { key, sizeBytes, downloadUrl };
+    return { key, sizeBytes };
   });
 
   await step.run('send-success-email', () =>
@@ -365,7 +364,9 @@ export async function exportRunHandler({ event, step }: InngestFn) {
       idempotencyKey: `export-run-${exportRunId}`,
       exportName: setup.exportName,
       rowCount: writeResult.rowCount,
-      downloadUrl: uploaded.downloadUrl,
+      // Defect #2: our own portal-scoped, re-signing route - never a raw R2
+      // URL (see inngest/email.ts's buildRunDownloadUrl for why).
+      downloadUrl: buildRunDownloadUrl(exportRunId),
       skippedColumns: writeResult.skippedColumns,
       // Both required for the 8 MB rule (spec section 9): sendSuccessEmail's
       // attachEligible check is `fileSizeBytes <= 8MB && filePath` - omitting

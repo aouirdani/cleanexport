@@ -28,6 +28,7 @@ import { readSession } from '@/lib/session';
 import { AppError, ErrorCode } from '@/lib/errors';
 import { RunStatus } from '@/lib/generated/prisma/client';
 import { loadR2Config, signedDownloadUrl, DOWNLOAD_URL_TTL_SECONDS } from '@/inngest/r2';
+import { exportFilename } from '@/inngest/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +44,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const run = await prisma.exportRun.findFirst({
     where: { id, portalId: session.portalId },
-    select: { status: true, fileKey: true, finishedAt: true },
+    select: { status: true, fileKey: true, finishedAt: true, export: { select: { name: true } } },
   });
 
   if (!run || run.status !== RunStatus.SUCCESS || !run.fileKey || !run.finishedAt) {
@@ -61,7 +62,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   }
 
   const r2 = loadR2Config();
-  const url = signedDownloadUrl(r2, run.fileKey);
+  // Defect #2: response-content-disposition=attachment (with the same
+  // slugified filename the success email's attachment uses) makes the
+  // browser download the file directly instead of opening a blank tab -
+  // R2 otherwise serves the object with no Content-Disposition at all.
+  const filename = exportFilename(run.export.name, run.finishedAt);
+  const url = signedDownloadUrl(r2, run.fileKey, filename);
 
   return NextResponse.redirect(url, 302);
 }

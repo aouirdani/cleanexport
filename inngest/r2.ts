@@ -131,13 +131,24 @@ function encodeKeyForPath(key: string): string {
   return key.split('/').map(encodeURIComponent).join('/');
 }
 
-/** Exported (only) for tests/inngest/r2.test.ts - a known-inputs SigV4 cross-check needs a fixed clock. */
+/**
+ * Exported (only) for tests/inngest/r2.test.ts - a known-inputs SigV4
+ * cross-check needs a fixed clock.
+ *
+ * `extraQueryParams` is how a caller adds an S3 "response header override"
+ * (e.g. `response-content-disposition`) to a GET presign - see
+ * signedDownloadUrl below. These must be signed exactly like the X-Amz-*
+ * params (SigV4 covers the WHOLE query string, not just the ones this
+ * function invented), so they're merged into the same `queryParams` object
+ * before the canonical query string is built, not appended after signing.
+ */
 export function presignR2Url(
   config: R2Config,
   method: 'GET' | 'PUT' | 'DELETE',
   key: string,
   expiresInSeconds: number,
   now: Date = new Date(),
+  extraQueryParams: Record<string, string> = {},
 ): string {
   const host = `${config.accountId}.r2.cloudflarestorage.com`;
   const { amzDate, dateStamp } = amzTimestamp(now);
@@ -150,6 +161,7 @@ export function presignR2Url(
     'X-Amz-Date': amzDate,
     'X-Amz-Expires': String(expiresInSeconds),
     'X-Amz-SignedHeaders': 'host',
+    ...extraQueryParams,
   };
   const canonicalQueryString = Object.keys(queryParams)
     .sort()
@@ -206,9 +218,29 @@ export async function uploadFileToR2(config: R2Config, filePath: string, key: st
   return { sizeBytes: size };
 }
 
-/** A signed, TTL-limited download URL - never a public/permanent one (spec section 9). */
-export function signedDownloadUrl(config: R2Config, key: string, expiresInSeconds = DOWNLOAD_URL_TTL_SECONDS): string {
-  return presignR2Url(config, 'GET', key, expiresInSeconds);
+/**
+ * A signed, TTL-limited download URL - never a public/permanent one (spec
+ * section 9).
+ *
+ * Defect #2: R2 serves the object with no Content-Disposition of its own,
+ * so a browser navigating straight to this URL opens a blank tab before the
+ * download starts (or doesn't appear to start anything, on some browsers).
+ * `filename`, when given, sets `response-content-disposition=attachment` on
+ * the presigned URL - an S3/R2 "response header override" query param that
+ * SigV4 signs like any other, so the object is served with a
+ * Content-Disposition telling the browser to download it directly, named
+ * `filename` rather than the opaque HMAC key on disk in R2.
+ */
+export function signedDownloadUrl(
+  config: R2Config,
+  key: string,
+  filename?: string,
+  expiresInSeconds = DOWNLOAD_URL_TTL_SECONDS,
+): string {
+  const extraQueryParams: Record<string, string> = filename
+    ? { 'response-content-disposition': `attachment; filename="${filename}"` }
+    : {};
+  return presignR2Url(config, 'GET', key, expiresInSeconds, new Date(), extraQueryParams);
 }
 
 /**
