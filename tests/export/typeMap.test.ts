@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapCell, columnValueType, type PropertyDef, type MappedCell } from '@/lib/export/typeMap';
+import { mapCell, columnValueType, columnWrapsText, type PropertyDef, type MappedCell } from '@/lib/export/typeMap';
 
 // Rules under test (specs/05-EXPORT-ENGINE.md sections 4.0 and 4; ground truth
 // observed values from recon/FINDINGS.md sections 3, 7, 8 - FINDINGS wins on conflict):
@@ -652,5 +652,40 @@ describe('columnValueType - specs/05-EXPORT-ENGINE.md sections 4.0 and 4, restat
         expect(predicted).toBe(actualKind);
       },
     );
+  });
+});
+
+// Column widths (lib/export/writer.ts): a wrapText column must be widened
+// BEFORE any row is written, so this has to be knowable from the PropertyDef
+// alone - same shape/reasoning as columnValueType above, mirroring
+// mapString's own `fieldType === 'textarea'` check exactly.
+describe('columnWrapsText - a property-level answer, no raw value needed (mirrors columnValueType)', () => {
+  it('string/textarea wraps; string/text and string/html do not', () => {
+    expect(columnWrapsText({ name: 'notes', label: 'Notes', type: 'string', fieldType: 'textarea' })).toBe(true);
+    expect(columnWrapsText({ name: 'firstname', label: 'First Name', type: 'string', fieldType: 'text' })).toBe(false);
+    expect(columnWrapsText({ name: 'summary', label: 'Summary', type: 'string', fieldType: 'html' })).toBe(false);
+  });
+
+  it('a type outside the string/phone_number rule never wraps, even with fieldType "textarea"', () => {
+    expect(columnWrapsText({ name: 'a', label: 'A', type: 'number', fieldType: 'textarea' })).toBe(false);
+    expect(columnWrapsText({ name: 'b', label: 'B', type: 'enumeration', fieldType: 'textarea' })).toBe(false);
+  });
+
+  it('phone_number shares string\'s rule, so it wraps with fieldType "textarea" too (matches mapString\'s own dispatch)', () => {
+    expect(columnWrapsText({ name: 'c', label: 'C', type: 'phone_number', fieldType: 'textarea' })).toBe(true);
+  });
+
+  it('a referencedObjectType property never wraps, even OWNER', () => {
+    const owner: PropertyDef = { name: 'hubspot_owner_id', label: 'Owner', type: 'enumeration', fieldType: 'select', referencedObjectType: 'OWNER' };
+    expect(columnWrapsText(owner)).toBe(false);
+  });
+
+  it('an unknown (skipped) property never wraps', () => {
+    expect(columnWrapsText(undefined)).toBe(false);
+  });
+
+  it('cross-check against mapCell\'s actual runtime output: predicts wrapText exactly for a real textarea value', () => {
+    const def: PropertyDef = { name: 'message', label: 'Message', type: 'string', fieldType: 'textarea' };
+    expect(columnWrapsText(def)).toBe(Boolean(mapCell('line one\nline two', def).wrapText));
   });
 });

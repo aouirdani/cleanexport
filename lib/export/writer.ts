@@ -15,12 +15,19 @@
 
 import ExcelJS from 'exceljs';
 import type { HubSpotRecord } from '@/lib/export/fetch';
-import { mapCell, type PropertyDef } from '@/lib/export/typeMap';
+import { mapCell, columnWrapsText, type PropertyDef } from '@/lib/export/typeMap';
 import { sanitizeCell, sanitizeRawForCoercion } from '@/lib/export/sanitize';
 
 const HEADER_FILL_ARGB = 'FF2E3B4E';
 const HEADER_FONT_ARGB = 'FFFFFFFF';
 const MIN_COLUMN_WIDTH = 12;
+/**
+ * A wrapText column (e.g. a textarea Notes field) holding several lines is
+ * unreadable at the plain MIN_COLUMN_WIDTH - a 3-line note in a 12-character
+ * column is unusable without the customer resizing it by hand. Still capped
+ * by MAX_COLUMN_WIDTH like every other column (spec section 5's formula).
+ */
+const WRAP_TEXT_MIN_WIDTH = 40;
 const MAX_COLUMN_WIDTH = 50;
 
 export interface WriteExportOptions {
@@ -41,8 +48,21 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function columnWidth(headerLength: number): number {
-  return Math.min(Math.max(headerLength, MIN_COLUMN_WIDTH), MAX_COLUMN_WIDTH);
+/**
+ * spec section 5: `min(max(headerLength, 12), 50)`. `wraps` widens the floor
+ * to WRAP_TEXT_MIN_WIDTH for a column that will hold multi-line values - a
+ * three-line note is unreadable at 12 characters wide. `headerLength` is
+ * defensively coerced to a finite number: this is the one formula every
+ * column's width comes from, and a column whose header text was ever
+ * missing/non-string must still get a real width, never `NaN` (which
+ * `Column.width` would silently accept, and which ExcelJS's `<col>` writer
+ * then omits the `width` attribute for entirely - Excel falls back to its
+ * own default, exactly the "column has no width" symptom this fixes).
+ */
+function columnWidth(headerLength: number, wraps: boolean): number {
+  const safeLength = Number.isFinite(headerLength) ? headerLength : 0;
+  const floor = wraps ? WRAP_TEXT_MIN_WIDTH : MIN_COLUMN_WIDTH;
+  return Math.min(Math.max(safeLength, floor), MAX_COLUMN_WIDTH);
 }
 
 function applyHeaderRowStyle(row: ExcelJS.Row, columnCount: number): void {
@@ -68,14 +88,27 @@ export async function writeExport(opts: WriteExportOptions): Promise<{ rowCount:
   const columnCount = internalHeaderRow.length;
   const dataStartRow = headerStyle === 'BOTH' ? 3 : 2;
 
+  // Property-level trait (not per-value), so it's known before any row is
+  // written - see typeMap.ts's columnWrapsText. Association columns have no
+  // PropertyDef and never wrap.
+  const wrapsTextRow = [
+    ...properties.map((name) => columnWrapsText(propertyDefs.get(name))),
+    ...associationColumns.map(() => false),
+  ];
+
   const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({ filename: filePath, useStyles: true });
   const sheet = workbook.addWorksheet('Export', {
     views: [{ state: 'frozen', ySplit: dataStartRow - 1 }],
   });
 
-  sheet.columns = internalHeaderRow.map((_name, i) => ({
-    width: columnWidth(String(labelHeaderRow[i]).length),
-  }));
+  // Set explicitly, one column at a time - not via a single `sheet.columns =
+  // [...]` batch assignment. Every column gets its own direct width write
+  // here, by column number, so there is no shared array-conversion step
+  // (ExcelJS's Column.toModel/equivalentTo consolidation of the whole
+  // array) whose behaviour depends on every other column's width too.
+  for (let i = 0; i < columnCount; i++) {
+    sheet.getColumn(i + 1).width = columnWidth(String(labelHeaderRow[i]).length, wrapsTextRow[i]);
+  }
 
   if (headerStyle === 'LABEL' || headerStyle === 'BOTH') {
     const row = sheet.getRow(1);

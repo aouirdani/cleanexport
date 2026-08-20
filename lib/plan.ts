@@ -89,6 +89,15 @@ export interface SubscriptionBannerState {
   isLapsed: boolean;
   /** Only meaningful for TRIALING with a known trialEndsAt; can be <= 0 once lapsed. */
   trialDaysRemaining: number | null;
+  /**
+   * The raw date, passed through as-is (not formatted here): the banner
+   * states "the date the trial ends," not just a day count, and formatting
+   * a given Date is safe inside the 'use client' banner (no Date.now() read
+   * there - see components/dashboard/billing-banner.tsx's own header
+   * comment on why that distinction matters). Only meaningful alongside
+   * trialDaysRemaining.
+   */
+  trialEndsAt: Date | null;
   /** Only meaningful for PAST_DUE with a known pastDueSince; can be <= 0 once the grace period has elapsed. */
   graceDaysRemaining: number | null;
 }
@@ -114,6 +123,7 @@ export function describeSubscriptionForBanner(
       subscription.status === SubStatus.TRIALING && subscription.trialEndsAt
         ? Math.ceil((subscription.trialEndsAt.getTime() - now.getTime()) / DAY_MS)
         : null,
+    trialEndsAt: subscription.status === SubStatus.TRIALING ? subscription.trialEndsAt : null,
     graceDaysRemaining:
       subscription.status === SubStatus.PAST_DUE && subscription.pastDueSince
         ? Math.ceil((subscription.pastDueSince.getTime() + PAST_DUE_GRACE_DAYS * DAY_MS - now.getTime()) / DAY_MS)

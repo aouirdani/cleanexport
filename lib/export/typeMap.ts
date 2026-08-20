@@ -114,6 +114,14 @@ interface DispatchRule {
   /** A function, not a constant: 'enumeration' resolves to 'boolean' or 'text' depending on fieldType. */
   kind: (def: PropertyDef) => PropertyValueKind;
   produce: (raw: string, def: PropertyDef) => MappedCell;
+  /**
+   * Whether this property's column ever gets `wrapText` (mapString's own
+   * `fieldType === 'textarea'` check) - a property-level trait, not a
+   * per-value one, so a caller can widen the column BEFORE it has seen any
+   * actual row data. Optional: defaults to never-wraps for every rule that
+   * doesn't set it.
+   */
+  wraps?: (def: PropertyDef) => boolean;
 }
 
 /**
@@ -128,6 +136,8 @@ const DISPATCH_TABLE: DispatchRule[] = [
     matches: (def) => def.type === 'string' || def.type === 'phone_number',
     kind: () => 'text',
     produce: mapString,
+    // Mirrors mapString's own condition exactly - see columnWrapsText below.
+    wraps: (def) => def.fieldType === 'textarea',
   },
   {
     matches: (def) => def.type === 'number',
@@ -230,4 +240,16 @@ export function columnValueType(def: PropertyDef | undefined): PropertyValueKind
   if (!def) return 'text'; // unknown/skipped property - same text fallback as the table's default rule
   if (def.referencedObjectType) return 'text'; // identifiers, incl. a resolved OWNER name, are always text
   return findRule(def).kind(def);
+}
+
+/**
+ * Same shape as `columnValueType` - a property-level answer, no raw value
+ * needed - so lib/export/writer.ts can decide a column's WIDTH before it has
+ * written a single row. A `referencedObjectType` property is always plain
+ * text (never textarea), so it never wraps either.
+ */
+export function columnWrapsText(def: PropertyDef | undefined): boolean {
+  if (!def) return false;
+  if (def.referencedObjectType) return false;
+  return findRule(def).wraps?.(def) ?? false;
 }

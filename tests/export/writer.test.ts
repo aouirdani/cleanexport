@@ -535,3 +535,104 @@ describe('writeExport - sanitisation (spec section 3) runs before type coercion 
     expect(cell.value).toBe(-5);
   });
 });
+
+// Column widths - specs/05-EXPORT-ENGINE.md section 5: "Column width =
+// min(max(headerLength, 12), 50)." Observed on a real export: widths were
+// set for columns A, D and E only, B and C had none and Excel fell back to
+// its default. Every column is now assigned its width in an explicit,
+// per-column loop (lib/export/writer.ts) rather than a single batch
+// `sheet.columns = [...]` assignment, specifically so this can never depend
+// on any other column's width/style - each one is independent.
+describe('writeExport - column widths: every column in the used range has an explicit width', () => {
+  it('five columns with varied header lengths, including two adjacent columns short enough to clamp to the same width, all get an explicit width - none fall back to Excel\'s default', async () => {
+    const filePath = await tempFilePath('column-widths.xlsx');
+    const propertyDefs = new Map([
+      ['a', { name: 'a', label: 'A Very Long Header Name Indeed', type: 'string', fieldType: 'text' } as PropertyDef],
+      ['b', { name: 'b', label: 'B', type: 'string', fieldType: 'text' } as PropertyDef], // clamps to the 12-char floor
+      ['c', { name: 'c', label: 'C', type: 'string', fieldType: 'text' } as PropertyDef], // clamps to the same floor as B
+      ['d', { name: 'd', label: 'D Long Header', type: 'string', fieldType: 'text' } as PropertyDef],
+      ['e', { name: 'e', label: 'E Even Longer Header Name Here', type: 'string', fieldType: 'text' } as PropertyDef],
+    ]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { a: '1', b: '2', c: '3', d: '4', e: '5' })]),
+      properties: ['a', 'b', 'c', 'd', 'e'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    for (let col = 1; col <= 5; col++) {
+      const width = ws.getColumn(col).width;
+      expect(width, `column ${col} has no explicit width`).toBeDefined();
+      expect(Number.isFinite(width)).toBe(true);
+      expect(width as number).toBeGreaterThanOrEqual(12);
+      expect(width as number).toBeLessThanOrEqual(50);
+    }
+  });
+
+  it('an association column (no PropertyDef at all) also gets an explicit width', async () => {
+    const filePath = await tempFilePath('column-widths-association.xlsx');
+    const propertyDefs = new Map([['firstname', FIRSTNAME_DEF]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { firstname: 'Ada' })]),
+      properties: ['firstname'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+      associations: new Map([['1', { name: 'Acme Corp' }]]),
+      associationSpec: { toObjectType: 'Company', columns: ['name'] },
+    });
+
+    const ws = await readWorkbook(filePath);
+    expect(ws.actualColumnCount).toBe(2);
+    expect(ws.getColumn(1).width).toBeDefined();
+    expect(ws.getColumn(2).width).toBeDefined(); // the association column
+  });
+});
+
+describe('writeExport - column widths: a wrapText column is wider than a plain text one', () => {
+  it('a textarea (wrapText) column with a short label is wider than a plain text column with an equally short label', async () => {
+    const filePath = await tempFilePath('column-widths-wraptext.xlsx');
+    const propertyDefs = new Map([
+      ['note', { ...MESSAGE_DEF, name: 'note', label: 'A' } as PropertyDef], // textarea, 1-char label
+      ['tag', { name: 'tag', label: 'B', type: 'string', fieldType: 'text' } as PropertyDef], // plain text, 1-char label
+    ]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { note: 'line one' + LF + 'line two', tag: 'x' })]),
+      properties: ['note', 'tag'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const noteWidth = ws.getColumn(1).width as number;
+    const tagWidth = ws.getColumn(2).width as number;
+
+    expect(noteWidth).toBeGreaterThan(12); // wider than the plain 12-character floor
+    expect(noteWidth).toBeGreaterThan(tagWidth);
+    expect(noteWidth).toBeLessThanOrEqual(50); // still capped, per spec
+    expect(tagWidth).toBe(12); // unaffected - the plain column stays at the floor
+  });
+
+  it('a wrapText column whose header is already long is still capped at 50', async () => {
+    const filePath = await tempFilePath('column-widths-wraptext-long-header.xlsx');
+    const longLabel = 'A'.repeat(80);
+    const propertyDefs = new Map([['note', { ...MESSAGE_DEF, name: 'note', label: longLabel } as PropertyDef]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { note: 'line one' + LF + 'line two' })]),
+      properties: ['note'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    expect(ws.getColumn(1).width).toBe(50);
+  });
+});

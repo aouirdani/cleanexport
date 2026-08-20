@@ -323,7 +323,17 @@ describe('describeSubscriptionForBanner', () => {
       { status: 'TRIALING' as never, trialEndsAt, cancelAtPeriodEnd: false, pastDueSince: null },
       now,
     );
-    expect(result).toMatchObject({ isLapsed: false, trialDaysRemaining: 3, graceDaysRemaining: null });
+    expect(result).toMatchObject({ isLapsed: false, trialDaysRemaining: 3, graceDaysRemaining: null, trialEndsAt });
+  });
+
+  it('trialEndsAt is null for every non-TRIALING status, even when the row itself carries a stale value', () => {
+    const result = describeSubscriptionForBanner({
+      status: 'ACTIVE' as never,
+      trialEndsAt: new Date('2026-01-04T00:00:00Z'),
+      cancelAtPeriodEnd: false,
+      pastDueSince: null,
+    });
+    expect(result!.trialEndsAt).toBeNull();
   });
 
   it('TRIALING past its end: isLapsed is true and trialDaysRemaining is <= 0, not hidden or clamped away', () => {
