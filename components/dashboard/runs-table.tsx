@@ -18,6 +18,8 @@ export interface RunRow {
   errorCode: string | null
   errorMessage: string | null
   createdAt: string
+  /** True for a QUEUED/RUNNING run older than lib/runs.ts's STALE_RUN_MS - see isRunStale there. */
+  stale: boolean
 }
 
 const POLL_INTERVAL_MS = 4000
@@ -32,7 +34,9 @@ const IN_FLIGHT_STATUSES: RunStatusValue[] = ["QUEUED", "RUNNING"]
  */
 export function RunsTable({ initialRuns, exportId }: { initialRuns: RunRow[]; exportId?: string }) {
   const [runs, setRuns] = useState(initialRuns)
-  const hasInFlight = runs.some((run) => IN_FLIGHT_STATUSES.includes(run.status))
+  // A stale run is not "in flight" - it isn't going to settle on its own,
+  // so polling for it to would just poll forever (requirement 1).
+  const hasInFlight = runs.some((run) => IN_FLIGHT_STATUSES.includes(run.status) && !run.stale)
 
   useEffect(() => {
     if (!hasInFlight) return
@@ -101,7 +105,7 @@ function RunRowView({ run }: { run: RunRow }) {
       <tr className="border-b border-border/60 align-top transition-colors last:border-0 hover:bg-muted/40">
         <td className="py-3 pr-4 pl-5 text-[13px] font-medium">{run.exportName}</td>
         <td className="py-3 pr-4">
-          <RunStatusBadge status={run.status} />
+          <RunStatusBadge status={run.status} stale={run.stale} />
         </td>
         <td className="py-3 pr-4 tabular-nums whitespace-nowrap text-muted-foreground">
           {formatDateTime(run.startedAt ?? run.createdAt)}

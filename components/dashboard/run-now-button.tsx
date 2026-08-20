@@ -20,19 +20,28 @@ import type { RunStatusValue } from "@/components/dashboard/run-status-badge"
  * button does not poll. A currently-running export shows the disabled
  * state as of the last page load/navigation, same as every other value
  * on this page.
+ *
+ * `latestStale`: a QUEUED/RUNNING run older than lib/runs.ts's STALE_RUN_MS
+ * (30 minutes) is NOT treated as in-flight - a lost export.run.requested
+ * event used to leave this button permanently disabled with no way out.
+ * The API route itself re-validates this independently (never trust a
+ * disabled state alone to prevent a duplicate run) and fails the stale row
+ * inline before starting the new one.
  */
 export function RunNowButton({
   exportId,
   latestStatus,
+  latestStale = false,
 }: {
   exportId: string
   latestStatus?: RunStatusValue
+  latestStale?: boolean
 }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const alreadyInFlight = latestStatus === "QUEUED" || latestStatus === "RUNNING"
+  const alreadyInFlight = !latestStale && (latestStatus === "QUEUED" || latestStatus === "RUNNING")
   const disabled = pending || alreadyInFlight
 
   async function handleRun() {

@@ -7,15 +7,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { readSessionMock } = vi.hoisted(() => ({ readSessionMock: vi.fn() }));
 vi.mock('@/lib/session', () => ({ readSession: readSessionMock }));
 
-const { findFirstExportMock, findFirstRunMock, createRunMock } = vi.hoisted(() => ({
+const { findFirstExportMock, findFirstRunMock, createRunMock, updateManyRunMock } = vi.hoisted(() => ({
   findFirstExportMock: vi.fn(),
   findFirstRunMock: vi.fn(),
   createRunMock: vi.fn(),
+  updateManyRunMock: vi.fn(),
 }));
 vi.mock('@/lib/db', () => ({
   prisma: {
     exportDefinition: { findFirst: findFirstExportMock },
-    exportRun: { findFirst: findFirstRunMock, create: createRunMock },
+    exportRun: { findFirst: findFirstRunMock, create: createRunMock, updateMany: updateManyRunMock },
   },
 }));
 
@@ -39,6 +40,7 @@ beforeEach(() => {
   findFirstExportMock.mockReset();
   findFirstRunMock.mockReset();
   createRunMock.mockReset();
+  updateManyRunMock.mockReset();
   assertWithinPlanMock.mockReset();
   sendMock.mockReset();
 
@@ -46,6 +48,7 @@ beforeEach(() => {
   findFirstExportMock.mockResolvedValue({ id: 'export-1' });
   findFirstRunMock.mockResolvedValue(null); // no run currently in flight
   createRunMock.mockResolvedValue({ id: 'run-1' });
+  updateManyRunMock.mockResolvedValue({ count: 1 });
   assertWithinPlanMock.mockResolvedValue(undefined);
   sendMock.mockResolvedValue(undefined);
 });
@@ -194,6 +197,79 @@ describe('POST /api/exports/[id]/run', () => {
 
       expect(res.status).toBe(202);
       expect(createRunMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // Requirement: "A run stuck in QUEUED disables 'Run now' for that export
+  // forever" - lib/runs.ts's STALE_RUN_MS (30 minutes) boundary, at the API
+  // route that previously had no way out of this.
+  describe('a stale in-flight run does not block a new one', () => {
+    it('a 31-minute-old QUEUED run does NOT block a new run - it is failed inline and a new one starts', async () => {
+      findFirstRunMock.mockResolvedValue({
+        id: 'stuck-run',
+        status: 'QUEUED',
+        createdAt: new Date(Date.now() - 31 * 60 * 1000),
+      });
+      createRunMock.mockResolvedValue({ id: 'run-new' });
+
+      const res = await POST(new Request('http://localhost/x'), ctx('export-1'));
+      const body = await res.json();
+
+      expect(res.status).toBe(202);
+      expect(body).toEqual({ runId: 'run-new' });
+      expect(createRunMock).toHaveBeenCalledTimes(1);
+      expect(sendMock).toHaveBeenCalledWith({ name: 'export.run.requested', data: { exportRunId: 'run-new' } });
+
+      // The stale row is failed inline, status-guarded against a race.
+      expect(updateManyRunMock).toHaveBeenCalledWith({
+        where: { id: 'stuck-run', status: 'QUEUED' },
+        data: expect.objectContaining({ status: 'FAILED', errorCode: 'TIMEOUT' }),
+      });
+    });
+
+    it('a 31-minute-old RUNNING run does NOT block a new one either', async () => {
+      findFirstRunMock.mockResolvedValue({
+        id: 'stuck-run',
+        status: 'RUNNING',
+        createdAt: new Date(Date.now() - 31 * 60 * 1000),
+      });
+      createRunMock.mockResolvedValue({ id: 'run-new' });
+
+      const res = await POST(new Request('http://localhost/x'), ctx('export-1'));
+
+      expect(res.status).toBe(202);
+      expect(createRunMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('a 5-minute-old QUEUED run still blocks a new run', async () => {
+      findFirstRunMock.mockResolvedValue({
+        id: 'fresh-run',
+        status: 'QUEUED',
+        createdAt: new Date(Date.now() - 5 * 60 * 1000),
+      });
+
+      const res = await POST(new Request('http://localhost/x'), ctx('export-1'));
+      const body = await res.json();
+
+      expect(res.status).toBe(202);
+      expect(body).toEqual({ runId: 'fresh-run' });
+      expect(createRunMock).not.toHaveBeenCalled();
+      expect(updateManyRunMock).not.toHaveBeenCalled();
+      expect(sendMock).not.toHaveBeenCalled();
+    });
+
+    it('exactly at the 30-minute boundary still blocks (not yet stale - the rule is "older than" 30 minutes)', async () => {
+      findFirstRunMock.mockResolvedValue({
+        id: 'boundary-run',
+        status: 'QUEUED',
+        createdAt: new Date(Date.now() - 30 * 60 * 1000),
+      });
+
+      const res = await POST(new Request('http://localhost/x'), ctx('export-1'));
+      const body = await res.json();
+
+      expect(body).toEqual({ runId: 'boundary-run' });
+      expect(createRunMock).not.toHaveBeenCalled();
     });
   });
 });

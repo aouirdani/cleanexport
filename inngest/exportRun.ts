@@ -81,9 +81,14 @@ import { loadR2Config, uploadFileToR2, signedDownloadUrl, deriveObjectKey } from
 import { sendSuccessEmail, sendFailureEmail, buildReconnectUrl } from './email';
 import { disablePortalOnRevocation } from './revocation';
 import { logger } from '@/lib/logger';
+import { STALE_RUN_MS } from '@/lib/runs';
 
-/** spec section 8: "Run exceeds 30 minutes -> Fail with TIMEOUT." */
-const MAX_RUN_MS = 30 * 60 * 1000;
+/**
+ * spec section 8: "Run exceeds 30 minutes -> Fail with TIMEOUT." Same
+ * constant inngest/staleRuns.ts uses for the mirror-image case (a run that
+ * never started) - one 30-minute rule, not two independently-drifting ones.
+ */
+const MAX_RUN_MS = STALE_RUN_MS;
 
 /** Thrown internally when a run exceeds MAX_RUN_MS. Never sent to HubSpot. */
 class RunTimeoutError extends Error {

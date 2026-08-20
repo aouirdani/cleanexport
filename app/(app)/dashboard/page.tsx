@@ -109,7 +109,7 @@ export default async function DashboardPage() {
                   <div className="flex items-center gap-3">
                     {latest ? (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <RunStatusBadge status={latest.status as RunStatusValue} />
+                        <RunStatusBadge status={latest.status as RunStatusValue} stale={latest.stale} />
                         <span className="tabular-nums">{formatDateTime(latest.finishedAt ?? latest.createdAt)}</span>
                       </div>
                     ) : (
@@ -123,7 +123,11 @@ export default async function DashboardPage() {
                     >
                       View runs
                     </Button>
-                    <RunNowButton exportId={exportDef.id} latestStatus={latest?.status as RunStatusValue | undefined} />
+                    <RunNowButton
+                      exportId={exportDef.id}
+                      latestStatus={latest?.status as RunStatusValue | undefined}
+                      latestStale={latest?.stale}
+                    />
                   </div>
                 </li>
               )

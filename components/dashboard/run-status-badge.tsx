@@ -1,4 +1,4 @@
-import { Clock, RefreshCw, CircleCheck, CircleX, CircleSlash } from "lucide-react"
+import { Clock, RefreshCw, CircleCheck, CircleX, CircleSlash, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 /**
@@ -35,7 +35,24 @@ const ICON: Record<RunStatusValue, typeof Clock> = {
   CANCELLED: CircleSlash,
 }
 
-export function RunStatusBadge({ status }: { status: RunStatusValue }) {
+/**
+ * `stale` overrides the QUEUED/RUNNING display with a distinct "Stalled"
+ * badge - the underlying DB status is still QUEUED/RUNNING until
+ * inngest/staleRuns.ts's cron (or app/api/exports/[id]/run/route.ts, on the
+ * next "Run now" click) gets around to marking it FAILED, but the dashboard
+ * must not go on calling a run over 30 minutes old "Queued"/"Running" as if
+ * it were still in progress (requirement 1).
+ */
+export function RunStatusBadge({ status, stale = false }: { status: RunStatusValue; stale?: boolean }) {
+  if (stale && (status === "QUEUED" || status === "RUNNING")) {
+    return (
+      <Badge variant="destructive">
+        <TriangleAlert aria-hidden />
+        Stalled
+      </Badge>
+    )
+  }
+
   const Icon = ICON[status]
   return (
     <Badge variant={VARIANT[status]}>

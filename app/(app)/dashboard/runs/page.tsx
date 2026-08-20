@@ -31,6 +31,7 @@ function toRunRow(run: Awaited<ReturnType<typeof listRuns>>[number]): RunRow {
     errorCode: run.errorCode,
     errorMessage: run.errorMessage,
     createdAt: run.createdAt.toISOString(),
+    stale: run.stale,
   }
 }
 

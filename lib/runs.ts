@@ -8,10 +8,27 @@
  * one place rather than being re-implemented per caller.
  */
 import { prisma } from '@/lib/db';
-import type { RunStatus, Trigger } from '@/lib/generated/prisma/client';
+import { RunStatus, type Trigger } from '@/lib/generated/prisma/client';
 
 /** specs/01-PRD.md A8: "last 30 runs" - the run-history table never shows more. */
 export const RUN_HISTORY_LIMIT = 30;
+
+/**
+ * specs/05-EXPORT-ENGINE.md section 8's 30-minute TIMEOUT (inngest/exportRun.ts's
+ * MAX_RUN_MS), applied to the case that spec section never covered: a run
+ * whose export.run.requested event was lost, so it never even started. Such
+ * a run sits in QUEUED (or RUNNING, if it started but then the process died
+ * mid-step) forever unless something says otherwise - `isRunStale` is that
+ * "otherwise," shared by the dashboard (treat it as not-in-flight) and
+ * inngest/staleRuns.ts (the cron that actually marks it FAILED).
+ */
+export const STALE_RUN_MS = 30 * 60 * 1000;
+
+/** A run is only ever "stale" while it's still claiming to be in flight - a terminal run is just old, not stale. */
+export function isRunStale(run: { status: RunStatus; createdAt: Date }, now: Date = new Date()): boolean {
+  if (run.status !== RunStatus.QUEUED && run.status !== RunStatus.RUNNING) return false;
+  return now.getTime() - run.createdAt.getTime() > STALE_RUN_MS;
+}
 
 export interface RunListItem {
   id: string;
@@ -27,6 +44,8 @@ export interface RunListItem {
   errorCode: string | null;
   errorMessage: string | null;
   createdAt: Date;
+  /** True for a QUEUED/RUNNING run older than STALE_RUN_MS - see isRunStale. */
+  stale: boolean;
 }
 
 const RUN_SELECT = {
@@ -44,9 +63,12 @@ const RUN_SELECT = {
   export: { select: { name: true } },
 } as const;
 
-function toListItem(row: { export: { name: string } } & Omit<RunListItem, 'exportName'>): RunListItem {
+function toListItem(
+  row: { export: { name: string } } & Omit<RunListItem, 'exportName' | 'stale'>,
+  now: Date,
+): RunListItem {
   const { export: exportDef, ...rest } = row;
-  return { ...rest, exportName: exportDef.name };
+  return { ...rest, exportName: exportDef.name, stale: isRunStale(row, now) };
 }
 
 /** Clamps a caller-supplied limit into (0, RUN_HISTORY_LIMIT] - never more than the spec allows, never zero or negative. */
@@ -70,7 +92,8 @@ export async function listRuns(
     select: RUN_SELECT,
   });
 
-  return runs.map(toListItem);
+  const now = new Date();
+  return runs.map((run) => toListItem(run, now));
 }
 
 export async function getRun(portalId: string, id: string): Promise<RunListItem | null> {
@@ -79,7 +102,7 @@ export async function getRun(portalId: string, id: string): Promise<RunListItem 
     select: RUN_SELECT,
   });
 
-  return run ? toListItem(run) : null;
+  return run ? toListItem(run, new Date()) : null;
 }
 
 export interface LatestRunByExport {
@@ -88,6 +111,8 @@ export interface LatestRunByExport {
   createdAt: Date;
   finishedAt: Date | null;
   rowCount: number | null;
+  /** True for a QUEUED/RUNNING run older than STALE_RUN_MS - see isRunStale. */
+  stale: boolean;
 }
 
 /**
@@ -109,10 +134,11 @@ export async function getLatestRunPerExport(
     select: { id: true, exportId: true, status: true, createdAt: true, finishedAt: true, rowCount: true },
   });
 
+  const now = new Date();
   const latest = new Map<string, LatestRunByExport>();
   for (const run of runs) {
     if (latest.has(run.exportId)) continue; // already-seen exportId is a later (older) row - orderBy desc
-    latest.set(run.exportId, run);
+    latest.set(run.exportId, { ...run, stale: isRunStale(run, now) });
   }
   return latest;
 }

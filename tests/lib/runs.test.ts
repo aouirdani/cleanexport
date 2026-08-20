@@ -71,7 +71,9 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
-const { listRuns, getRun, getLatestRunPerExport, RUN_HISTORY_LIMIT } = await import('@/lib/runs');
+const { listRuns, getRun, getLatestRunPerExport, isRunStale, RUN_HISTORY_LIMIT, STALE_RUN_MS } = await import(
+  '@/lib/runs'
+);
 
 beforeEach(() => {
   runs = [];
@@ -184,5 +186,72 @@ describe('getLatestRunPerExport', () => {
     expect(result.get('export-a')?.id).toBe('a-new');
     expect(result.get('export-a')?.status).toBe('SUCCESS');
     expect(result.get('export-b')?.id).toBe('b-only');
+  });
+
+  it('flags a stale QUEUED/RUNNING run so the dashboard does not treat it as in-flight forever', async () => {
+    runs = [
+      makeRun({
+        id: 'stuck',
+        exportId: 'export-a',
+        status: 'QUEUED',
+        createdAt: new Date(Date.now() - 31 * 60 * 1000),
+      }),
+    ];
+
+    const result = await getLatestRunPerExport('portal-1', ['export-a']);
+
+    expect(result.get('export-a')?.stale).toBe(true);
+  });
+
+  it('a fresh QUEUED/RUNNING run is not stale', async () => {
+    runs = [
+      makeRun({
+        id: 'fresh',
+        exportId: 'export-a',
+        status: 'RUNNING',
+        createdAt: new Date(Date.now() - 5 * 60 * 1000),
+      }),
+    ];
+
+    const result = await getLatestRunPerExport('portal-1', ['export-a']);
+
+    expect(result.get('export-a')?.stale).toBe(false);
+  });
+});
+
+// Requirement: "A run in QUEUED or RUNNING for more than 30 minutes is
+// considered stale" - isRunStale is the one place that decides this, shared
+// by lib/runs.ts's own toListItem/getLatestRunPerExport,
+// app/api/exports/[id]/run/route.ts, and inngest/staleRuns.ts.
+describe('isRunStale', () => {
+  it('a 31-minute-old QUEUED run is stale', () => {
+    expect(isRunStale({ status: 'QUEUED' as never, createdAt: new Date(Date.now() - 31 * 60 * 1000) })).toBe(true);
+  });
+
+  it('a 5-minute-old QUEUED run is not stale', () => {
+    expect(isRunStale({ status: 'QUEUED' as never, createdAt: new Date(Date.now() - 5 * 60 * 1000) })).toBe(false);
+  });
+
+  it('a 31-minute-old RUNNING run is stale', () => {
+    expect(isRunStale({ status: 'RUNNING' as never, createdAt: new Date(Date.now() - 31 * 60 * 1000) })).toBe(true);
+  });
+
+  it('exactly at the 30-minute boundary is not yet stale ("older than", not "at least")', () => {
+    const now = new Date();
+    const createdAt = new Date(now.getTime() - STALE_RUN_MS);
+    expect(isRunStale({ status: 'QUEUED' as never, createdAt }, now)).toBe(false);
+  });
+
+  it('one millisecond past the 30-minute boundary is stale', () => {
+    const now = new Date();
+    const createdAt = new Date(now.getTime() - STALE_RUN_MS - 1);
+    expect(isRunStale({ status: 'QUEUED' as never, createdAt }, now)).toBe(true);
+  });
+
+  it('a terminal run (SUCCESS/FAILED/CANCELLED) is never stale, no matter how old', () => {
+    const veryOld = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    expect(isRunStale({ status: 'SUCCESS' as never, createdAt: veryOld })).toBe(false);
+    expect(isRunStale({ status: 'FAILED' as never, createdAt: veryOld })).toBe(false);
+    expect(isRunStale({ status: 'CANCELLED' as never, createdAt: veryOld })).toBe(false);
   });
 });

@@ -22,12 +22,21 @@
  * existing run's id without re-sending (export.run.requested's own
  * `idempotency: event.data.exportRunId` would make a resend harmless too,
  * but there is no reason to send it twice).
+ *
+ * Stale in-flight runs are not in-flight: a QUEUED/RUNNING row older than
+ * lib/runs.ts's STALE_RUN_MS (30 minutes - inngest/staleRuns.ts's cron will
+ * mark it FAILED on its own schedule, but a customer clicking "Run now"
+ * should not have to wait for that tick) is failed right here, inline,
+ * before falling through to the normal "nothing in flight" path below - the
+ * bug this fixes is exactly a lost event leaving a row that never resolves
+ * on its own, permanently blocking this export until someone intervenes.
  */
 import { NextResponse } from 'next/server';
 import { readSession } from '@/lib/session';
 import { AppError, ErrorCode } from '@/lib/errors';
 import { prisma } from '@/lib/db';
 import { assertWithinPlan } from '@/lib/plan';
+import { isRunStale } from '@/lib/runs';
 import { RunStatus, Trigger } from '@/lib/generated/prisma/client';
 import { inngest } from '@/inngest/client';
 
@@ -55,10 +64,25 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const inFlight = await prisma.exportRun.findFirst({
     where: { exportId: exportDef.id, status: { in: [RunStatus.QUEUED, RunStatus.RUNNING] } },
     orderBy: { createdAt: 'desc' },
-    select: { id: true },
+    select: { id: true, status: true, createdAt: true },
   });
-  if (inFlight) {
+  if (inFlight && !isRunStale(inFlight)) {
     return NextResponse.json({ runId: inFlight.id }, { status: 202 });
+  }
+  if (inFlight) {
+    // Status-guarded, same reasoning as inngest/staleRuns.ts: only fail it
+    // if it's still in the exact state just read, so a genuine completion
+    // racing this request isn't clobbered.
+    await prisma.exportRun.updateMany({
+      where: { id: inFlight.id, status: inFlight.status },
+      data: {
+        status: RunStatus.FAILED,
+        finishedAt: new Date(),
+        errorCode: ErrorCode.TIMEOUT,
+        errorMessage:
+          "This export never completed - it was stuck without progress for over 30 minutes and has been marked as failed.",
+      },
+    });
   }
 
   try {
