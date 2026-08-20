@@ -92,7 +92,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <BillingBanner
         subscription={
           subscription
-            ? { ...subscription, trialEndsAt: subscription.trialEndsAt?.toISOString() ?? null }
+            ? {
+                status: subscription.status,
+                cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+                trialDaysRemaining: subscription.trialEndsAt
+                  ? Math.max(0, Math.ceil((subscription.trialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+                  : null,
+              }
             : null
         }
       />

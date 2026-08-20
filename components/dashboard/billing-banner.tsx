@@ -10,13 +10,7 @@ import { Button } from "@/components/ui/button"
 type SubStatusValue = "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED"
 
 export interface BillingBannerProps {
-  subscription: { status: SubStatusValue; trialEndsAt: string | null; cancelAtPeriodEnd: boolean } | null
-}
-
-function daysRemaining(trialEndsAt: string | null): number | null {
-  if (!trialEndsAt) return null;
-  const ms = new Date(trialEndsAt).getTime() - Date.now();
-  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+  subscription: { status: SubStatusValue; trialDaysRemaining: number | null; cancelAtPeriodEnd: boolean } | null
 }
 
 /**
@@ -82,7 +76,7 @@ export function BillingBanner({ subscription }: BillingBannerProps) {
       action: subscribeButtons,
     };
   } else if (subscription.status === "TRIALING") {
-    const days = daysRemaining(subscription.trialEndsAt);
+    const days = subscription.trialDaysRemaining;
     content = {
       message: days === null ? "You're on a trial." : `${days} day${days === 1 ? "" : "s"} left in your trial.`,
       tone: "default",
