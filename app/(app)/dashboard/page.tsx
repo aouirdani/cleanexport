@@ -33,7 +33,15 @@ export default async function DashboardPage() {
   const exports = await prisma.exportDefinition.findMany({
     where: { portalId: current.portal.id, isActive: true },
     orderBy: { createdAt: "desc" },
-    select: { id: true, name: true, objectType: true, scheduleCron: true, scheduleTz: true, nextRunAt: true },
+    select: {
+      id: true,
+      name: true,
+      objectType: true,
+      scheduleCron: true,
+      scheduleTz: true,
+      nextRunAt: true,
+      recipients: true,
+    },
   });
 
   const latestRuns = await getLatestRunPerExport(
@@ -85,6 +93,16 @@ export default async function DashboardPage() {
                           <TriangleAlert aria-hidden />
                           Schedule needs attention
                         </Badge>
+                      )}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {exportDef.recipients.length === 0 ? (
+                        <Badge variant="destructive">
+                          <TriangleAlert aria-hidden />
+                          No recipients - runs will fail
+                        </Badge>
+                      ) : (
+                        <>Sends to {exportDef.recipients.join(", ")}</>
                       )}
                     </p>
                   </div>

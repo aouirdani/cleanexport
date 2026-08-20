@@ -217,6 +217,15 @@ export async function exportRunHandler({ event, step }: InngestFn) {
       throw new NonRetriableError('Portal is disconnected; reconnect HubSpot before running this export');
     }
 
+    // specs/05-EXPORT-ENGINE.md section 8: "a scheduled export failing
+    // silently is worse than no scheduled export." A run with nobody to
+    // deliver to did not succeed just because the file got generated -
+    // fail loudly here, before spending any HubSpot API calls, rather than
+    // marking SUCCESS and quietly sending nothing.
+    if (exportDef.recipients.length === 0) {
+      throw new NonRetriableError(`[${ErrorCode.NO_RECIPIENTS}] Export has no recipients configured; nothing was sent`);
+    }
+
     // QUEUED-only guard: a retried invocation of this step (before Inngest
     // memoized its success) must not reset startedAt on a run already RUNNING.
     await prisma.exportRun.updateMany({

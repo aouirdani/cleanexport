@@ -11,8 +11,10 @@ vi.mock('@/lib/session', () => ({ readSession: readSessionMock }));
 const { assertWithinPlanMock } = vi.hoisted(() => ({ assertWithinPlanMock: vi.fn() }));
 vi.mock('@/lib/plan', () => ({ assertWithinPlan: assertWithinPlanMock }));
 
-const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
-vi.mock('@/lib/db', () => ({ prisma: { exportDefinition: { create: createMock } } }));
+const { createMock, findUserMock } = vi.hoisted(() => ({ createMock: vi.fn(), findUserMock: vi.fn() }));
+vi.mock('@/lib/db', () => ({
+  prisma: { exportDefinition: { create: createMock }, user: { findUnique: findUserMock } },
+}));
 
 const { POST } = await import('@/app/api/exports/route');
 const { AppError, ErrorCode } = await import('@/lib/errors');
@@ -37,9 +39,11 @@ beforeEach(() => {
   readSessionMock.mockReset();
   assertWithinPlanMock.mockReset();
   createMock.mockReset();
+  findUserMock.mockReset();
   readSessionMock.mockResolvedValue(SESSION);
   assertWithinPlanMock.mockResolvedValue(undefined);
   createMock.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'export-1', ...data }));
+  findUserMock.mockResolvedValue({ email: 'ada@example.com' });
 });
 
 describe('POST /api/exports', () => {
@@ -153,6 +157,25 @@ describe('POST /api/exports', () => {
     const call = createMock.mock.calls[0][0] as { data: Record<string, unknown> };
     expect(call.data).not.toHaveProperty('filters');
     expect(call.data).not.toHaveProperty('associations');
+  });
+
+  it('defaults recipients to the session user\'s email when the builder submits an empty list', async () => {
+    await POST(req(VALID_BODY));
+
+    expect(findUserMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'user-1' } }));
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ recipients: ['ada@example.com'] }) }),
+    );
+  });
+
+  it('leaves an explicit recipient list untouched', async () => {
+    findUserMock.mockClear();
+    await POST(req({ ...VALID_BODY, recipients: ['grace@example.com'] }));
+
+    expect(findUserMock).not.toHaveBeenCalled();
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ recipients: ['grace@example.com'] }) }),
+    );
   });
 
   it('passes filters and associations through when provided', async () => {

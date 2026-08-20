@@ -53,6 +53,16 @@ export async function POST(req: Request) {
     throw err;
   }
 
+  // A user who configures an export obviously wants it - an empty recipient
+  // list means "send it to me," not "send it to nobody" (specs/05-EXPORT-ENGINE.md
+  // section 8). Only defaulted when the builder submitted none; an explicit
+  // list is left untouched.
+  let recipients = data.recipients;
+  if (recipients.length === 0) {
+    const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { email: true } });
+    if (user) recipients = [user.email];
+  }
+
   let nextRunAt: Date | null = null;
   if (data.scheduleCron) {
     try {
@@ -76,7 +86,7 @@ export async function POST(req: Request) {
       ...(data.associations ? { associations: data.associations } : {}),
       scheduleCron: data.scheduleCron ?? null,
       scheduleTz: data.scheduleTz,
-      recipients: data.recipients,
+      recipients,
       nextRunAt,
     },
   });

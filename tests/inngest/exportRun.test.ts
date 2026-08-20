@@ -545,6 +545,59 @@ describe('exportRunHandler - requirement 4: zero rows still produces and emails 
   });
 });
 
+describe('exportRunHandler - requirement 5: NO_RECIPIENTS', () => {
+  it('an export with no recipients fails the run with NO_RECIPIENTS rather than succeeding silently', async () => {
+    const fakePrisma = makeFakePrisma({
+      portal: makePortal(),
+      exportDef: makeExportDef({ recipients: [] }),
+      run: makeRun(),
+    });
+    await setPrisma(fakePrisma);
+    vi.stubGlobal('fetch', makeFakeFetch({ records: [{ id: 'c1', properties: { firstname: 'Ada' } }] }));
+
+    let caught: unknown;
+    try {
+      await exportRunHandler({ event: RUN_EVENT, step: makeStep() });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(NonRetriableError);
+    expect((caught as Error).message).toContain(ErrorCode.NO_RECIPIENTS);
+
+    // Never reached the HubSpot API, the upload, or a success email - it
+    // fails before any of that work, not after generating a file nobody
+    // will receive.
+    expect(rawCallsByKey.size).toBe(0);
+
+    await exportRunOnFailure({
+      event: { data: { event: RUN_EVENT } },
+      error: caught as Error,
+      step: makeStep(),
+    });
+
+    expect(fakePrisma.state.runs.get('run-1')!.status).toBe(RunStatus.FAILED);
+    expect(fakePrisma.state.runs.get('run-1')!.errorCode).toBe(ErrorCode.NO_RECIPIENTS);
+  });
+
+  it('an export WITH recipients actually calls the email step with a non-empty list', async () => {
+    const fakePrisma = makeFakePrisma({
+      portal: makePortal(),
+      exportDef: makeExportDef({ recipients: ['ada@example.com', 'grace@example.com'] }),
+      run: makeRun(),
+    });
+    await setPrisma(fakePrisma);
+    vi.stubGlobal('fetch', makeFakeFetch({ records: [{ id: 'c1', properties: { firstname: 'Ada' } }] }));
+    tempFilesToClean.push(join(tmpdir(), 'cleanexport-run-run-1.xlsx'));
+
+    await exportRunHandler({ event: RUN_EVENT, step: makeStep() });
+
+    expect(rawCallsByKey.get('export-run-run-1')).toBe(1);
+    const payload = lastPayloadByKey.get('export-run-run-1') as { to: string[] };
+    expect(payload.to).toEqual(['ada@example.com', 'grace@example.com']);
+  });
+});
+
 describe('inngest/email.ts sendSuccessEmail - requirement 6: the 8 MB attachment rule', () => {
   it('a file at or under 8 MB is attached AND linked', async () => {
     const { sendSuccessEmail } = await import('@/inngest/email');
