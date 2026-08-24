@@ -38,17 +38,22 @@ export async function POST(req: Request) {
   const stripe = stripeClient();
   const stripeCustomerId = await ensureStripeCustomerForPortal(stripe, session.portalId, session.hubspotPortalId);
 
-  const checkoutSession = await createCheckoutSession({
+  // May resolve to a Checkout session OR (if this portal already has a
+  // live trialing/active/past_due subscription) a Customer Portal session
+  // instead - see lib/billing.ts's createCheckoutSession for why.
+  const { url } = await createCheckoutSession({
     stripe,
+    portalId: session.portalId,
     stripeCustomerId,
     plan: parsed.data.plan,
     successUrl: `${appUrl()}/dashboard?checkout=success`,
     cancelUrl: `${appUrl()}/dashboard?checkout=cancelled`,
+    returnUrl: `${appUrl()}/dashboard`,
   });
 
-  if (!checkoutSession.url) {
+  if (!url) {
     return errorResponse(new AppError(ErrorCode.INTERNAL, 'Stripe did not return a Checkout URL', 502));
   }
 
-  return NextResponse.json({ url: checkoutSession.url });
+  return NextResponse.json({ url });
 }

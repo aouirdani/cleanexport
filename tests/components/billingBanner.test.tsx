@@ -36,7 +36,7 @@ describe("BillingBanner", () => {
     expect(screen.queryByText("$290/year")).not.toBeInTheDocument();
   });
 
-  it("TRIALING, still running: states days remaining and the end date, one quiet action, yearly behind a small link - never two price buttons", () => {
+  it("TRIALING, still running: states days remaining and the end date, one quiet PRIMARY action, yearly behind a small TEXT LINK (not a second button) - never two price buttons", () => {
     render(
       <BillingBanner
         subscription={base({
@@ -49,11 +49,54 @@ describe("BillingBanner", () => {
 
     expect(screen.getByText(/5 days left in your trial/)).toBeInTheDocument();
     expect(screen.getByText(/Aug 26, 2026/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add payment method" })).toBeInTheDocument();
-    expect(screen.getByText("or pay yearly and save two months")).toBeInTheDocument();
+
+    const monthlyButton = screen.getByRole("button", { name: "Add payment method" });
+    const yearlyLink = screen.getByText("or pay yearly and save two months");
+
+    // "One quiet primary action... yearly behind a SMALL TEXT LINK" is a
+    // structural claim, not just a copy claim: a presence-only check (does
+    // *something* named "Add payment method" exist) would still pass if a
+    // future change turned the yearly option into a second real Button, or
+    // demoted the monthly action to a plain link - neither of which is
+    // "one primary action and a small link." The monthly action must go
+    // through our actual Button primitive (data-slot="button"); the yearly
+    // option must not.
+    expect(monthlyButton).toHaveAttribute("data-slot", "button");
+    expect(yearlyLink.tagName).toBe("BUTTON"); // still a real, clickable <button> for accessibility...
+    expect(yearlyLink).not.toHaveAttribute("data-slot", "button"); // ...but not promoted to the primary Button primitive
+
     // Not two competing priced buttons.
     expect(screen.queryByText("$29/month")).not.toBeInTheDocument();
     expect(screen.queryByText("$290/year")).not.toBeInTheDocument();
+  });
+
+  it("TRIALING, still running: clicking each action posts the RIGHT plan - a button that merely LOOKS right (correct label, wrong handler) is exactly as broken as a missing one", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ url: "https://checkout.stripe.com/x" }),
+    })) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <BillingBanner
+        subscription={base({ isLapsed: false, trialDaysRemaining: 5, trialEndsAt: new Date("2026-08-26T00:00:00Z") })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add payment method" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/billing/checkout",
+      expect.objectContaining({ body: JSON.stringify({ plan: "monthly" }) }),
+    );
+
+    await user.click(screen.getByText("or pay yearly and save two months"));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/billing/checkout",
+      expect.objectContaining({ body: JSON.stringify({ plan: "yearly" }) }),
+    );
   });
 
   it("TRIALING, expired: states exports stopped, shows BOTH plan choices clearly priced", () => {

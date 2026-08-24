@@ -327,35 +327,172 @@ describe('handleCheckoutSessionCompleted', () => {
   });
 });
 
-describe('createCheckoutSession / createPortalSession - thin Stripe wrappers', () => {
-  it('createCheckoutSession requests subscription mode, the right price, and a 14-day trial', async () => {
-    const create = vi.fn().mockResolvedValue({ id: 'cs_1', url: 'https://checkout.stripe.com/x' });
-    const stripe = { checkout: { sessions: { create } } } as unknown as Stripe;
-
-    await createCheckoutSession({
-      stripe,
-      stripeCustomerId: 'cus_1',
-      plan: 'monthly',
-      successUrl: 'https://app.example.com/success',
-      cancelUrl: 'https://app.example.com/cancel',
-    });
-
-    expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mode: 'subscription',
-        customer: 'cus_1',
-        line_items: [{ price: 'price_monthly_test', quantity: 1 }],
-        subscription_data: { trial_period_days: 14 },
-      }),
-    );
-  });
-
-  it('createPortalSession points at the given customer and return URL', async () => {
+describe('createPortalSession - thin Stripe wrapper', () => {
+  it('points at the given customer and return URL', async () => {
     const create = vi.fn().mockResolvedValue({ id: 'bps_1', url: 'https://billing.stripe.com/x' });
     const stripe = { billingPortal: { sessions: { create } } } as unknown as Stripe;
 
     await createPortalSession({ stripe, stripeCustomerId: 'cus_1', returnUrl: 'https://app.example.com/dashboard' });
 
     expect(create).toHaveBeenCalledWith({ customer: 'cus_1', return_url: 'https://app.example.com/dashboard' });
+  });
+});
+
+// The incident: "five subscriptions exist for two email addresses" -
+// createCheckoutSession created a brand-new Stripe subscription (with its
+// own fresh 14-day trial) on every call, never checking whether the
+// portal already had one. Two independent fixes, tested separately below:
+//   1. An existing LIVE (per Stripe, not our cached row) trialing/active/
+//      past_due subscription short-circuits to the Customer Portal - no
+//      new Checkout session, ever.
+//   2. A portal that has EVER completed a checkout before (stripeSubscriptionId
+//      set, regardless of current status) never gets a second real trial.
+describe('createCheckoutSession - never a duplicate subscription, never a second trial', () => {
+  function stripeStub(opts: {
+    retrieve?: ReturnType<typeof vi.fn>;
+    checkoutCreate?: ReturnType<typeof vi.fn>;
+    portalCreate?: ReturnType<typeof vi.fn>;
+  }) {
+    return {
+      subscriptions: { retrieve: opts.retrieve ?? vi.fn() },
+      checkout: { sessions: { create: opts.checkoutCreate ?? vi.fn().mockResolvedValue({ url: 'https://checkout.stripe.com/x' }) } },
+      billingPortal: { sessions: { create: opts.portalCreate ?? vi.fn().mockResolvedValue({ url: 'https://billing.stripe.com/x' }) } },
+    } as unknown as Stripe;
+  }
+
+  const BASE_OPTS = {
+    portalId: 'portal-1',
+    stripeCustomerId: 'cus_1',
+    plan: 'monthly' as const,
+    successUrl: 'https://app.example.com/success',
+    cancelUrl: 'https://app.example.com/cancel',
+    returnUrl: 'https://app.example.com/dashboard',
+  };
+
+  it('no Subscription row at all (never checked out): creates a Checkout session with a full 14-day trial', async () => {
+    fakePrisma = makeFakePrisma([]);
+    await setPrisma(fakePrisma);
+    const checkoutCreate = vi.fn().mockResolvedValue({ url: 'https://checkout.stripe.com/x' });
+    const stripe = stripeStub({ checkoutCreate });
+
+    const result = await createCheckoutSession({ ...BASE_OPTS, stripe });
+
+    expect(result).toEqual({ url: 'https://checkout.stripe.com/x' });
+    expect(checkoutCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ subscription_data: { trial_period_days: 14 } }),
+    );
+  });
+
+  it('a Subscription row exists but has never completed a checkout (stripeSubscriptionId null): still a full 14-day trial, and Stripe is never asked for a live status', async () => {
+    fakePrisma = makeFakePrisma([
+      { portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: null, status: 'TRIALING', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },
+    ]);
+    await setPrisma(fakePrisma);
+    const retrieve = vi.fn();
+    const checkoutCreate = vi.fn().mockResolvedValue({ url: 'https://checkout.stripe.com/x' });
+    const stripe = stripeStub({ retrieve, checkoutCreate });
+
+    await createCheckoutSession({ ...BASE_OPTS, stripe });
+
+    expect(retrieve).not.toHaveBeenCalled();
+    expect(checkoutCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ subscription_data: { trial_period_days: 14 } }),
+    );
+  });
+
+  it.each(['trialing', 'active', 'past_due'] as const)(
+    'an existing subscription that is LIVE %s in Stripe: returns the Customer Portal URL, never creates a Checkout session',
+    async (liveStatus) => {
+      fakePrisma = makeFakePrisma([
+        { portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_existing', status: 'TRIALING', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },
+      ]);
+      await setPrisma(fakePrisma);
+      const retrieve = vi.fn().mockResolvedValue({ id: 'sub_existing', status: liveStatus });
+      const checkoutCreate = vi.fn();
+      const portalCreate = vi.fn().mockResolvedValue({ url: 'https://billing.stripe.com/manage' });
+      const stripe = stripeStub({ retrieve, checkoutCreate, portalCreate });
+
+      const result = await createCheckoutSession({ ...BASE_OPTS, stripe });
+
+      expect(retrieve).toHaveBeenCalledWith('sub_existing');
+      expect(checkoutCreate).not.toHaveBeenCalled();
+      expect(portalCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ customer: 'cus_1', return_url: 'https://app.example.com/dashboard' }),
+      );
+      expect(result).toEqual({ url: 'https://billing.stripe.com/manage' });
+    },
+  );
+
+  it('an existing subscription that is CANCELED in Stripe: creates a NEW Checkout session, but with trial_period_days 0 - already used a trial once', async () => {
+    fakePrisma = makeFakePrisma([
+      { portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_old', status: 'CANCELED', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },
+    ]);
+    await setPrisma(fakePrisma);
+    const retrieve = vi.fn().mockResolvedValue({ id: 'sub_old', status: 'canceled' });
+    const checkoutCreate = vi.fn().mockResolvedValue({ url: 'https://checkout.stripe.com/x' });
+    const portalCreate = vi.fn();
+    const stripe = stripeStub({ retrieve, checkoutCreate, portalCreate });
+
+    const result = await createCheckoutSession({ ...BASE_OPTS, stripe });
+
+    expect(portalCreate).not.toHaveBeenCalled();
+    expect(checkoutCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ subscription_data: { trial_period_days: 0 } }),
+    );
+    expect(result).toEqual({ url: 'https://checkout.stripe.com/x' });
+  });
+
+  it('Stripe fails to retrieve the existing subscription (e.g. deleted, or a network error): falls back to a new Checkout session, still with no second trial', async () => {
+    fakePrisma = makeFakePrisma([
+      { portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_gone', status: 'ACTIVE', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },
+    ]);
+    await setPrisma(fakePrisma);
+    const retrieve = vi.fn().mockRejectedValue(new Error('No such subscription'));
+    const checkoutCreate = vi.fn().mockResolvedValue({ url: 'https://checkout.stripe.com/x' });
+    const stripe = stripeStub({ retrieve, checkoutCreate });
+
+    const result = await createCheckoutSession({ ...BASE_OPTS, stripe });
+
+    expect(checkoutCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ subscription_data: { trial_period_days: 0 } }),
+    );
+    expect(result).toEqual({ url: 'https://checkout.stripe.com/x' });
+  });
+
+  it('requests the right price for the chosen plan', async () => {
+    fakePrisma = makeFakePrisma([]);
+    await setPrisma(fakePrisma);
+    const checkoutCreate = vi.fn().mockResolvedValue({ url: 'https://checkout.stripe.com/x' });
+    const stripe = stripeStub({ checkoutCreate });
+
+    await createCheckoutSession({ ...BASE_OPTS, plan: 'yearly', stripe });
+
+    expect(checkoutCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'subscription',
+        customer: 'cus_1',
+        line_items: [{ price: 'price_yearly_test', quantity: 1 }],
+      }),
+    );
+  });
+
+  it('two rapid calls against an existing live subscription both resolve to the portal - never two Checkout sessions, never a second subscription', async () => {
+    fakePrisma = makeFakePrisma([
+      { portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_existing', status: 'TRIALING', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },
+    ]);
+    await setPrisma(fakePrisma);
+    const retrieve = vi.fn().mockResolvedValue({ id: 'sub_existing', status: 'trialing' });
+    const checkoutCreate = vi.fn();
+    const portalCreate = vi.fn().mockResolvedValue({ url: 'https://billing.stripe.com/manage' });
+    const stripe = stripeStub({ retrieve, checkoutCreate, portalCreate });
+
+    const [first, second] = await Promise.all([
+      createCheckoutSession({ ...BASE_OPTS, stripe }),
+      createCheckoutSession({ ...BASE_OPTS, stripe }),
+    ]);
+
+    expect(checkoutCreate).not.toHaveBeenCalled();
+    expect(first).toEqual({ url: 'https://billing.stripe.com/manage' });
+    expect(second).toEqual({ url: 'https://billing.stripe.com/manage' });
   });
 });

@@ -206,21 +206,91 @@ export async function handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promi
 
 export interface CreateCheckoutSessionOptions {
   stripe: Stripe;
+  /** Looked up (not trusted from input) to find any subscription this portal already has. */
+  portalId: string;
   stripeCustomerId: string;
   plan: BillingPlan;
   successUrl: string;
   cancelUrl: string;
+  /** Where the Customer Portal sends the browser back to - only used when this call resolves to a portal session instead of a new Checkout one. */
+  returnUrl: string;
 }
 
-export async function createCheckoutSession(opts: CreateCheckoutSessionOptions): Promise<Stripe.Checkout.Session> {
-  return opts.stripe.checkout.sessions.create({
+/**
+ * Stripe subscription statuses that mean "this customer already has a
+ * subscription that a NEW Checkout session must not duplicate." Terminal
+ * statuses (`canceled`, `incomplete_expired`) are deliberately excluded -
+ * a returning customer with nothing live left is exactly who a new
+ * Checkout session is for (see `hasUsedTrial` below for what they don't
+ * get again: a second trial).
+ */
+const RENEWABLE_STRIPE_STATUSES: ReadonlySet<Stripe.Subscription.Status> = new Set([
+  'trialing',
+  'active',
+  'past_due',
+]);
+
+/**
+ * Five real Stripe subscriptions existed for two email addresses in test
+ * mode before this fix - every "Add payment method" / "Start free trial"
+ * click created ANOTHER Checkout Session, and Checkout's `mode:
+ * 'subscription'` always creates a brand-new subscription (with its own
+ * fresh 14-day trial) rather than attaching to an existing one. Two
+ * consequences this closes:
+ *   1. A trial can be renewed indefinitely by re-clicking the button -
+ *      the customer never pays.
+ *   2. Orphaned subscriptions all start billing in parallel once their
+ *      trials end, charging the same customer multiple times.
+ *
+ * The fix has two independent parts:
+ *   - If the portal's own Subscription row points at a Stripe subscription
+ *     that is CURRENTLY (per Stripe, not our possibly-stale cached status)
+ *     trialing/active/past_due, no new Checkout session is created at all -
+ *     the Customer Portal URL is returned instead, so "adding a payment
+ *     method" attaches to THAT subscription (Stripe's own portal flow),
+ *     never starts a second one.
+ *   - Otherwise, a new Checkout session IS created, but only gets a real
+ *     trial if this portal has never had a stripeSubscriptionId before.
+ *     `stripeSubscriptionId` is set once by `syncSubscriptionFromStripeObject`
+ *     on the first completed checkout and is never cleared afterwards
+ *     (`handleSubscriptionDeleted` keeps it) - its mere presence is a
+ *     durable "has this portal EVER completed a checkout" flag, with no
+ *     extra schema field needed.
+ */
+export async function createCheckoutSession(opts: CreateCheckoutSessionOptions): Promise<{ url: string | null }> {
+  const existing = await prisma.subscription.findUnique({
+    where: { portalId: opts.portalId },
+    select: { stripeSubscriptionId: true },
+  });
+
+  if (existing?.stripeSubscriptionId) {
+    // Re-verified against Stripe directly, not our own cached `status`:
+    // ours can be stale in either direction (a webhook not yet processed,
+    // or one we never received) - trusting a stale TRIALING would wrongly
+    // block a genuinely-lapsed customer from starting over, and trusting
+    // a stale CANCELED would wrongly let a still-live customer duplicate.
+    const live = await opts.stripe.subscriptions.retrieve(existing.stripeSubscriptionId).catch(() => null);
+    if (live && RENEWABLE_STRIPE_STATUSES.has(live.status)) {
+      const portalSession = await createPortalSession({
+        stripe: opts.stripe,
+        stripeCustomerId: opts.stripeCustomerId,
+        returnUrl: opts.returnUrl,
+      });
+      return { url: portalSession.url };
+    }
+  }
+
+  const hasUsedTrial = existing?.stripeSubscriptionId != null;
+
+  const session = await opts.stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: opts.stripeCustomerId,
     line_items: [{ price: priceIdFor(opts.plan), quantity: 1 }],
-    subscription_data: { trial_period_days: TRIAL_PERIOD_DAYS },
+    subscription_data: { trial_period_days: hasUsedTrial ? 0 : TRIAL_PERIOD_DAYS },
     success_url: opts.successUrl,
     cancel_url: opts.cancelUrl,
   });
+  return { url: session.url };
 }
 
 export interface CreatePortalSessionOptions {
