@@ -247,3 +247,181 @@ describe('scheduleTickHandler - lapsed subscriptions are skipped, not failed', (
     expect(fakePrisma.runs).toHaveLength(1);
   });
 });
+
+// THE PRODUCTION INCIDENT: "an export that satisfies every condition is
+// never picked up." Every test above (and every test that existed before
+// this one) uses a `findMany` fake that ignores the `where` object it is
+// called with entirely - it re-derives "is this due" from the seeded
+// row's own fields in plain JS (`def.nextRunAt.getTime() <= Date.now()`),
+// never from the actual query arguments scheduleTickHandler builds. That
+// stub would pass unchanged even if the real `where` clause were wrong,
+// missing a field, malformed, or (the actual production bug - see
+// lib/db.ts's header) comparing values that LOOK right in isolation but
+// were shifted by a timezone mismatch between whichever process wrote
+// `nextRunAt` and whichever reads it. None of that is exercisable through
+// a fake that never looks at `where` at all.
+//
+// This fake does look at it: `findMany` filters a small seeded table by
+// actually evaluating each clause scheduleTickHandler's real query uses
+// (`isActive`, `scheduleCron: { not: null }`, `nextRunAt: { lte }`,
+// `portal.disconnectedAt`), and separately captures the exact call args
+// so the shape of the query itself can be asserted on - not just its
+// eventual effect.
+describe('scheduleTickHandler - the real WHERE clause and subscription select, faithfully evaluated', () => {
+  interface FakeRow {
+    id: string;
+    portalId: string;
+    isActive: boolean;
+    scheduleCron: string | null;
+    scheduleTz: string;
+    nextRunAt: Date | null;
+    disconnectedAt: Date | null;
+    subscription: { status: string; trialEndsAt: Date | null; pastDueSince: Date | null } | null;
+  }
+
+  function makeQueryAwarePrisma(rows: FakeRow[]) {
+    const findManyCalls: unknown[] = [];
+    const runs: FakeExportRun[] = [];
+    let runCounter = 0;
+    const table = new Map(rows.map((r) => [r.id, { ...r }]));
+
+    return {
+      exportDefinition: {
+        findMany: vi.fn(async (args: {
+          where: {
+            isActive?: boolean;
+            scheduleCron?: { not: null };
+            nextRunAt?: { lte: Date };
+            portal?: { disconnectedAt: null };
+          };
+        }) => {
+          findManyCalls.push(args);
+          const { where } = args;
+          return [...table.values()]
+            .filter((row) => where.isActive === undefined || row.isActive === where.isActive)
+            .filter((row) => !where.scheduleCron || row.scheduleCron !== null)
+            .filter((row) => !where.nextRunAt || (row.nextRunAt !== null && row.nextRunAt.getTime() <= where.nextRunAt.lte.getTime()))
+            .filter((row) => !where.portal || row.disconnectedAt === where.portal.disconnectedAt)
+            .map((row) => ({
+              id: row.id,
+              portalId: row.portalId,
+              scheduleCron: row.scheduleCron,
+              scheduleTz: row.scheduleTz,
+              nextRunAt: row.nextRunAt,
+              // The actual shape lib.ts's select produces - proves the
+              // subscription is genuinely loaded (possibly `null`, never
+              // silently `undefined`), not assumed by the fake.
+              portal: { subscription: row.subscription },
+            }));
+        }),
+        updateMany: vi.fn(async ({ where, data }: { where: { id: string; nextRunAt: Date; isActive: boolean }; data: Record<string, unknown> }) => {
+          const row = table.get(where.id);
+          if (!row || !row.nextRunAt || row.nextRunAt.getTime() !== where.nextRunAt.getTime() || row.isActive !== where.isActive) {
+            return { count: 0 };
+          }
+          table.set(where.id, { ...row, ...data });
+          return { count: 1 };
+        }),
+      },
+      exportRun: {
+        create: vi.fn(async ({ data }: { data: { portalId: string; exportId: string; status: string; trigger: string } }) => {
+          const run: FakeExportRun = { id: `run-${++runCounter}`, createdAt: new Date(), ...data };
+          runs.push(run);
+          return { id: run.id };
+        }),
+        findFirst: vi.fn(async () => null),
+      },
+      runs,
+      findManyCalls,
+    };
+  }
+
+  it('seeds an export whose nextRunAt is in the past, runs the real handler, and a run IS created', async () => {
+    const fakePrisma = makeQueryAwarePrisma([
+      {
+        id: 'export-prod',
+        portalId: 'portal-prod',
+        isActive: true,
+        scheduleCron: '*/15 * * * *',
+        scheduleTz: 'UTC',
+        nextRunAt: new Date(Date.now() - 8 * 60 * 1000), // due 8 minutes ago - the exact shape of the reported incident
+        disconnectedAt: null,
+        subscription: { status: 'TRIALING', trialEndsAt: null, pastDueSince: null }, // TRIALING, not lapsed - matches the report
+      },
+    ]);
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    const result = await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: ['evt-1'] })) });
+
+    expect(result).toEqual({ schedulesDue: 1 });
+    expect(fakePrisma.runs).toHaveLength(1);
+    expect(fakePrisma.runs[0]).toMatchObject({ exportId: 'export-prod', portalId: 'portal-prod', status: RunStatus.QUEUED, trigger: Trigger.SCHEDULE });
+  });
+
+  it('the query itself: isActive, a non-null scheduleCron, nextRunAt <= now, and an un-disconnected portal - the exact where clause, not a paraphrase', async () => {
+    const fakePrisma = makeQueryAwarePrisma([]);
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    const before = new Date();
+    await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: [] })) });
+    const after = new Date();
+
+    expect(fakePrisma.findManyCalls).toHaveLength(1);
+    const { where } = fakePrisma.findManyCalls[0] as {
+      where: { isActive: boolean; scheduleCron: { not: null }; nextRunAt: { lte: Date }; portal: { disconnectedAt: null } };
+    };
+    expect(where.isActive).toBe(true);
+    expect(where.scheduleCron).toEqual({ not: null });
+    expect(where.portal).toEqual({ disconnectedAt: null });
+    // `now` is a real, freshly-constructed instant - not a hardcoded or
+    // locally-shifted value (the actual root cause: see lib/db.ts).
+    expect(where.nextRunAt.lte.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    expect(where.nextRunAt.lte.getTime()).toBeLessThanOrEqual(after.getTime());
+  });
+
+  it('a schedule due by every field EXCEPT an active subscription is found (schedulesDue counts it) but produces no run - matches "lapsed" semantics, not "not found"', async () => {
+    const fakePrisma = makeQueryAwarePrisma([
+      {
+        id: 'export-canceled',
+        portalId: 'portal-canceled',
+        isActive: true,
+        scheduleCron: '0 9 * * *',
+        scheduleTz: 'UTC',
+        nextRunAt: new Date(Date.now() - 60_000),
+        disconnectedAt: null,
+        subscription: { status: 'CANCELED', trialEndsAt: null, pastDueSince: null },
+      },
+    ]);
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    const result = await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: [] })) });
+
+    expect(result).toEqual({ schedulesDue: 1 }); // the WHERE clause found it
+    expect(fakePrisma.runs).toHaveLength(0); // the lapsed check inside the loop skipped it
+  });
+
+  it('a disconnected portal is excluded by the WHERE clause itself, not by the loop', async () => {
+    const fakePrisma = makeQueryAwarePrisma([
+      {
+        id: 'export-disconnected',
+        portalId: 'portal-disconnected',
+        isActive: true,
+        scheduleCron: '0 9 * * *',
+        scheduleTz: 'UTC',
+        nextRunAt: new Date(Date.now() - 60_000),
+        disconnectedAt: new Date(), // disconnected
+        subscription: null,
+      },
+    ]);
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    const result = await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: [] })) });
+
+    expect(result).toEqual({ schedulesDue: 0 });
+    expect(fakePrisma.runs).toHaveLength(0);
+  });
+});
