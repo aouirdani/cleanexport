@@ -100,6 +100,14 @@ export interface SubscriptionBannerState {
   trialEndsAt: Date | null;
   /** Only meaningful for PAST_DUE with a known pastDueSince; can be <= 0 once the grace period has elapsed. */
   graceDaysRemaining: number | null;
+  /**
+   * When the CURRENT (not necessarily trial) period ends, passed through
+   * unformatted for the same reason trialEndsAt is - what the banner states
+   * when cancelAtPeriodEnd is true, so a customer who just cancelled sees
+   * "ends <date>" instead of the same countdown/CTA they saw before
+   * cancelling.
+   */
+  currentPeriodEnd: Date | null;
 }
 
 /**
@@ -110,7 +118,7 @@ export interface SubscriptionBannerState {
  * without faking the system clock.
  */
 export function describeSubscriptionForBanner(
-  subscription: (SubscriptionLike & { cancelAtPeriodEnd: boolean }) | null,
+  subscription: (SubscriptionLike & { cancelAtPeriodEnd: boolean; currentPeriodEnd?: Date | null }) | null,
   now: Date = new Date(),
 ): SubscriptionBannerState | null {
   if (!subscription) return null;
@@ -128,6 +136,7 @@ export function describeSubscriptionForBanner(
       subscription.status === SubStatus.PAST_DUE && subscription.pastDueSince
         ? Math.ceil((subscription.pastDueSince.getTime() + PAST_DUE_GRACE_DAYS * DAY_MS - now.getTime()) / DAY_MS)
         : null,
+    currentPeriodEnd: subscription.currentPeriodEnd ?? null,
   };
 }
 

@@ -18,6 +18,7 @@ export interface BillingBannerProps {
     trialDaysRemaining: number | null
     trialEndsAt: Date | string | null
     graceDaysRemaining: number | null
+    currentPeriodEnd: Date | string | null
   } | null
 }
 
@@ -115,6 +116,15 @@ export function BillingBanner({ subscription }: BillingBannerProps) {
     </Button>
   );
 
+  // Resuming a cancel-at-period-end subscription is a Stripe Customer
+  // Portal flow already ("do not build billing UI") - same mechanism as
+  // updatePaymentButton, just a different quiet action.
+  const resumeButton = (
+    <Button size="sm" variant="outline" onClick={openPortal} disabled={disabled}>
+      {pending === "portal" ? "Redirecting…" : "Resume subscription"}
+    </Button>
+  );
+
   // What's blocked while lapsed - lib/plan.ts's assertWithinPlan enforces
   // exactly this (CREATE_EXPORT/CREATE_SCHEDULE/RUN_EXPORT); existing
   // exports, run history, and downloads are deliberately NOT in this list -
@@ -136,6 +146,22 @@ export function BillingBanner({ subscription }: BillingBannerProps) {
           {pending === "monthly" ? "Redirecting…" : "Start free trial"}
         </Button>
       ),
+    };
+  } else if (subscription.cancelAtPeriodEnd && !subscription.isLapsed && (subscription.status === "ACTIVE" || subscription.status === "TRIALING")) {
+    // Cancelling sets cancel_at_period_end but leaves status ACTIVE/TRIALING
+    // until the period actually ends (Stripe only fires .deleted then) - a
+    // customer who just cancelled must see THIS, not the same countdown or
+    // "Manage billing" link they saw before, or they can't tell it worked
+    // (exactly when people cancel a second time or dispute the charge).
+    // Checked before the per-status branches below so it always wins over
+    // the running-trial/ACTIVE copy for as long as the cancellation is
+    // pending.
+    content = {
+      message: subscription.currentPeriodEnd
+        ? `Your subscription ends ${formatDate(subscription.currentPeriodEnd)}. Exports keep running until then.`
+        : "Your subscription is ending. Exports keep running until then.",
+      tone: "default",
+      action: resumeButton,
     };
   } else if (subscription.status === "TRIALING" && !subscription.isLapsed) {
     // TRIALING, still running: one quiet secondary action (monthly is the
@@ -194,12 +220,14 @@ export function BillingBanner({ subscription }: BillingBannerProps) {
       action: bothPlanChoices,
     };
   }
-  // ACTIVE falls through with content still null - see below: no pricing,
-  // ever, for a customer already paying. A single quiet "Manage billing"
-  // link instead of hiding the banner entirely, so there's always a way
-  // back to the Stripe portal without digging through settings.
+  // ACTIVE (with no cancellation pending) falls through with content still
+  // null - see below: no pricing, ever, for a customer already paying. A
+  // single quiet "Manage billing" link instead of hiding the banner
+  // entirely, so there's always a way back to the Stripe portal without
+  // digging through settings. ACTIVE WITH a pending cancellation already set
+  // `content` above and skips this early return.
 
-  if (subscription?.status === "ACTIVE") {
+  if (subscription?.status === "ACTIVE" && !content) {
     return (
       <div className="border-b border-border px-4 py-2.5 sm:px-6">
         <div className="mx-auto flex max-w-5xl items-center justify-end gap-2">

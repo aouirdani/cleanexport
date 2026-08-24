@@ -386,4 +386,26 @@ describe('describeSubscriptionForBanner', () => {
     });
     expect(result).toMatchObject({ isLapsed: false, trialDaysRemaining: null, graceDaysRemaining: null });
   });
+
+  it('passes currentPeriodEnd through as-is - what the banner states when cancelAtPeriodEnd is true', () => {
+    const currentPeriodEnd = new Date('2026-09-03T00:00:00Z');
+    const result = describeSubscriptionForBanner({
+      status: 'ACTIVE' as never,
+      trialEndsAt: null,
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd,
+      pastDueSince: null,
+    });
+    expect(result).toMatchObject({ cancelAtPeriodEnd: true, currentPeriodEnd });
+  });
+
+  it('currentPeriodEnd is null when not given (omitted from the caller, not just absent from Stripe)', () => {
+    const result = describeSubscriptionForBanner({
+      status: 'ACTIVE' as never,
+      trialEndsAt: null,
+      cancelAtPeriodEnd: false,
+      pastDueSince: null,
+    });
+    expect(result!.currentPeriodEnd).toBeNull();
+  });
 });

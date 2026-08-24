@@ -36,6 +36,8 @@ export interface CurrentSubscription {
   status: SubStatus;
   trialEndsAt: Date | null;
   cancelAtPeriodEnd: boolean;
+  /** The date a cancel-at-period-end subscription actually stops - what the banner states so the customer can tell cancelling worked. */
+  currentPeriodEnd: Date | null;
   /** Needed to compute the PAST_DUE grace period - see lib/plan.ts's isSubscriptionLapsed. */
   pastDueSince: Date | null;
 }
@@ -64,7 +66,7 @@ export const getCurrentSession = cache(async (): Promise<CurrentSessionResult> =
 
   const subscription = await prisma.subscription.findUnique({
     where: { portalId: session.portalId },
-    select: { status: true, trialEndsAt: true, cancelAtPeriodEnd: true, pastDueSince: true },
+    select: { status: true, trialEndsAt: true, cancelAtPeriodEnd: true, currentPeriodEnd: true, pastDueSince: true },
   });
 
   return {

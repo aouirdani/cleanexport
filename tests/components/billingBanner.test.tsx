@@ -18,6 +18,7 @@ function base(overrides: Partial<NonNullable<React.ComponentProps<typeof Billing
     trialDaysRemaining: null,
     trialEndsAt: null,
     graceDaysRemaining: null,
+    currentPeriodEnd: null,
     ...overrides,
   };
 }
@@ -120,6 +121,71 @@ describe("BillingBanner", () => {
     expect(screen.queryByRole("button", { name: "$290/year" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add payment method" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Start free trial" })).not.toBeInTheDocument();
+  });
+
+  it("ACTIVE with a pending cancellation: states the end date plainly and offers a Resume action, not the quiet Manage billing link", () => {
+    render(
+      <BillingBanner
+        subscription={base({
+          status: "ACTIVE",
+          isLapsed: false,
+          cancelAtPeriodEnd: true,
+          currentPeriodEnd: new Date("2026-09-03T00:00:00Z"),
+        })}
+      />,
+    );
+
+    expect(screen.getByText(/Your subscription ends/)).toBeInTheDocument();
+    expect(screen.getByText(/Sep 3, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Exports keep running until then/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resume subscription" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Manage billing" })).not.toBeInTheDocument();
+  });
+
+  it("ACTIVE with a pending cancellation: clicking Resume opens the Portal, same as Manage billing does", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ url: "https://billing.stripe.com/x" }) })) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <BillingBanner
+        subscription={base({ status: "ACTIVE", isLapsed: false, cancelAtPeriodEnd: true, currentPeriodEnd: new Date("2026-09-03T00:00:00Z") })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Resume subscription" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/billing/portal", expect.anything());
+  });
+
+  it("TRIALING with a pending cancellation: states the end date instead of the running-trial day count", () => {
+    render(
+      <BillingBanner
+        subscription={base({
+          status: "TRIALING",
+          isLapsed: false,
+          cancelAtPeriodEnd: true,
+          trialDaysRemaining: 5,
+          currentPeriodEnd: new Date("2026-09-03T00:00:00Z"),
+        })}
+      />,
+    );
+
+    expect(screen.getByText(/Your subscription ends/)).toBeInTheDocument();
+    expect(screen.getByText(/Sep 3, 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/days left in your trial/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resume subscription" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add payment method" })).not.toBeInTheDocument();
+  });
+
+  it("a lapsed trial with cancelAtPeriodEnd true still shows the expired-trial copy, not the resume state - nothing left to resume", () => {
+    render(
+      <BillingBanner
+        subscription={base({ status: "TRIALING", isLapsed: true, cancelAtPeriodEnd: true, trialDaysRemaining: -2 })}
+      />,
+    );
+
+    expect(screen.getByText(/Your trial has ended/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resume subscription" })).not.toBeInTheDocument();
   });
 
   it("PAST_DUE, within grace: states the failure and days of grace remaining, one action - Update payment method", () => {

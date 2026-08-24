@@ -210,6 +210,33 @@ describe('syncSubscriptionFromStripeObject - THE PORTAL IS RESOLVED FROM OUR STO
     expect(fakePrisma.state.byPortalId.get('portal-1')!.currentPeriodEnd).toEqual(new Date(1_800_000_000 * 1000));
   });
 
+  // Cancelling in the Customer Portal sets cancel_at_period_end on the
+  // subscription and fires customer.subscription.updated (NOT .deleted,
+  // which only fires once the period actually ends) - this must be
+  // persisted so the banner can tell the customer it worked, instead of
+  // showing the same countdown as before the cancellation.
+  it('persists cancel_at_period_end true from a subscription.updated-shaped event, without changing status', async () => {
+    fakePrisma = makeFakePrisma([
+      { portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_1', status: 'ACTIVE', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },
+    ]);
+    await setPrisma(fakePrisma);
+
+    await syncSubscriptionFromStripeObject(fakeSubscriptionObject({ status: 'active', cancel_at_period_end: true }));
+
+    expect(fakePrisma.state.byPortalId.get('portal-1')).toMatchObject({ status: 'ACTIVE', cancelAtPeriodEnd: true });
+  });
+
+  it('a later event with cancel_at_period_end false (resumed via the portal) clears it back', async () => {
+    fakePrisma = makeFakePrisma([
+      { portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_1', status: 'ACTIVE', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: true },
+    ]);
+    await setPrisma(fakePrisma);
+
+    await syncSubscriptionFromStripeObject(fakeSubscriptionObject({ status: 'active', cancel_at_period_end: false }));
+
+    expect(fakePrisma.state.byPortalId.get('portal-1')).toMatchObject({ cancelAtPeriodEnd: false });
+  });
+
   it('IDEMPOTENT: applying the identical event twice leaves the row in the exact same state, not doubled', async () => {
     fakePrisma = makeFakePrisma([
       { portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: null, status: 'TRIALING', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },

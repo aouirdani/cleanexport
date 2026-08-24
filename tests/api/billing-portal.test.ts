@@ -66,4 +66,14 @@ describe('POST /api/billing/portal', () => {
     expect(body).toEqual({ url: 'https://billing.stripe.com/session-url' });
     expect(createPortalSessionMock).toHaveBeenCalledWith(expect.objectContaining({ stripeCustomerId: 'cus_1' }));
   });
+
+  // A customer who cancels (or just looks around) in the Portal must land
+  // back in the app, not be stranded on Stripe's own domain - return_url is
+  // what puts a "Return to [business]" link on the Portal page.
+  it('sends the Portal a return_url back to our own /dashboard', async () => {
+    await POST();
+    expect(createPortalSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ returnUrl: 'https://app.example.com/dashboard' }),
+    );
+  });
 });
