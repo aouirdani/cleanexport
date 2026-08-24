@@ -282,11 +282,18 @@ export async function createCheckoutSession(opts: CreateCheckoutSessionOptions):
 
   const hasUsedTrial = existing?.stripeSubscriptionId != null;
 
+  // Stripe rejects `trial_period_days: 0` outright ("The minimum number of
+  // trial period days is 1.") - to grant NO trial the key must be omitted
+  // entirely, not set to zero. Setting it to 0 previously 500'd every
+  // checkout for a portal that had ever had a subscription before, which
+  // made resubscribing after cancelling impossible.
+  const subscriptionData = hasUsedTrial ? undefined : { trial_period_days: TRIAL_PERIOD_DAYS };
+
   const session = await opts.stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: opts.stripeCustomerId,
     line_items: [{ price: priceIdFor(opts.plan), quantity: 1 }],
-    subscription_data: { trial_period_days: hasUsedTrial ? 0 : TRIAL_PERIOD_DAYS },
+    ...(subscriptionData ? { subscription_data: subscriptionData } : {}),
     success_url: opts.successUrl,
     cancel_url: opts.cancelUrl,
   });

@@ -450,7 +450,7 @@ describe('createCheckoutSession - never a duplicate subscription, never a second
     },
   );
 
-  it('an existing subscription that is CANCELED in Stripe: creates a NEW Checkout session, but with trial_period_days 0 - already used a trial once', async () => {
+  it('an existing subscription that is CANCELED in Stripe: creates a NEW Checkout session, with NO trial_period_days key at all - already used a trial once', async () => {
     fakePrisma = makeFakePrisma([
       { portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_old', status: 'CANCELED', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },
     ]);
@@ -463,13 +463,16 @@ describe('createCheckoutSession - never a duplicate subscription, never a second
     const result = await createCheckoutSession({ ...BASE_OPTS, stripe });
 
     expect(portalCreate).not.toHaveBeenCalled();
-    expect(checkoutCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ subscription_data: { trial_period_days: 0 } }),
-    );
+    // Stripe rejects trial_period_days: 0 outright ("The minimum number of
+    // trial period days is 1.") - denying a second trial means OMITTING the
+    // key, not zeroing it. A call that still sent 0 here previously 500'd
+    // every resubscribe-after-cancel checkout in production.
+    const call = checkoutCreate.mock.calls[0][0] as { subscription_data?: unknown };
+    expect(call.subscription_data).toBeUndefined();
     expect(result).toEqual({ url: 'https://checkout.stripe.com/x' });
   });
 
-  it('Stripe fails to retrieve the existing subscription (e.g. deleted, or a network error): falls back to a new Checkout session, still with no second trial', async () => {
+  it('Stripe fails to retrieve the existing subscription (e.g. deleted, or a network error): falls back to a new Checkout session, still with no trial_period_days key', async () => {
     fakePrisma = makeFakePrisma([
       { portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_gone', status: 'ACTIVE', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false },
     ]);
@@ -480,10 +483,37 @@ describe('createCheckoutSession - never a duplicate subscription, never a second
 
     const result = await createCheckoutSession({ ...BASE_OPTS, stripe });
 
-    expect(checkoutCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ subscription_data: { trial_period_days: 0 } }),
-    );
+    const call = checkoutCreate.mock.calls[0][0] as { subscription_data?: unknown };
+    expect(call.subscription_data).toBeUndefined();
     expect(result).toEqual({ url: 'https://checkout.stripe.com/x' });
+  });
+
+  it('NEVER sends Stripe a trial_period_days value below 1, across every path that can deny a second trial', async () => {
+    const scenarios: Array<{ seed: FakeSubscription[]; retrieve?: ReturnType<typeof vi.fn> }> = [
+      {
+        seed: [{ portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_old', status: 'CANCELED', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false }],
+        retrieve: vi.fn().mockResolvedValue({ id: 'sub_old', status: 'canceled' }),
+      },
+      {
+        seed: [{ portalId: 'portal-1', stripeCustomerId: 'cus_1', stripeSubscriptionId: 'sub_gone', status: 'ACTIVE', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false }],
+        retrieve: vi.fn().mockRejectedValue(new Error('No such subscription')),
+      },
+    ];
+
+    for (const { seed, retrieve } of scenarios) {
+      fakePrisma = makeFakePrisma(seed);
+      await setPrisma(fakePrisma);
+      const checkoutCreate = vi.fn().mockResolvedValue({ url: 'https://checkout.stripe.com/x' });
+      const stripe = stripeStub({ retrieve, checkoutCreate });
+
+      await createCheckoutSession({ ...BASE_OPTS, stripe });
+
+      const sentData = (checkoutCreate.mock.calls[0][0] as { subscription_data?: { trial_period_days?: number } })
+        .subscription_data;
+      if (sentData && 'trial_period_days' in sentData) {
+        expect(sentData.trial_period_days).toBeGreaterThanOrEqual(1);
+      }
+    }
   });
 
   it('requests the right price for the chosen plan', async () => {
