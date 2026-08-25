@@ -1,8 +1,14 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+// Relative import, not the "@/" alias: next.config.ts is loaded by Next's
+// own config loader outside the normal app module-resolution pipeline,
+// which does not reliably honor tsconfig path aliases here.
+import { SECURITY_HEADERS } from "./lib/securityHeaders";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
 };
 
 export default withSentryConfig(nextConfig, {
