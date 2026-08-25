@@ -161,7 +161,7 @@ const FAQ = [
   },
   {
     q: "Who built this?",
-    a: "Aymane Ouirdani. Contact me directly at support@cleanexporter.com — you'll get a reply from the person who writes the code.",
+    a: "Aymane Ouirdani. Contact me directly at aymane.ouirdani94@outlook.fr — you'll get a reply from the person who writes the code.",
   },
 ] as const
 
@@ -565,7 +565,7 @@ export default async function LandingPage() {
                 {link.label}
               </a>
             ))}
-            <a href="mailto:support@cleanexporter.com" className="text-muted-foreground hover:text-foreground">
+            <a href="mailto:aymane.ouirdani94@outlook.fr" className="text-muted-foreground hover:text-foreground">
               Support
             </a>
           </nav>

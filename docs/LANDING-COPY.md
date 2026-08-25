@@ -121,7 +121,7 @@ Yes for the objects your plan exposes. The value is highest on Professional, whe
 reporting limits bite hardest.
 
 **Who built this?**
-Aymane Ouirdani. Contact me directly at support@cleanexporter.com — you'll get a reply from
+Aymane Ouirdani. Contact me directly at aymane.ouirdani94@outlook.fr — you'll get a reply from
 the person who writes the code.
 
 ---
