@@ -20,8 +20,8 @@ export default async function NewExportPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">New export</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-xl font-semibold tracking-[-0.015em]">New export</h1>
+        <p className="mt-1 text-[13px] text-muted-foreground">
           Pick an object type, choose properties, and get a clean Excel file - on a schedule if you want one.
         </p>
       </div>
