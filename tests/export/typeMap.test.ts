@@ -121,6 +121,21 @@ describe('mapCell - trap A: referencedObjectType is checked before the type/fiel
     expect(result.value).toBe(longId);
   });
 
+  it('a 17-digit id is preserved exactly - unlike the 16-digit case above, this one is UNAMBIGUOUSLY beyond Number.MAX_SAFE_INTEGER (2^53, 16 digits), so parsing it as a number is guaranteed lossy, not just theoretically risky', () => {
+    const def: PropertyDef = {
+      name: 'associatedcompanyid',
+      label: 'Company',
+      type: 'number',
+      fieldType: 'number',
+      referencedObjectType: 'COMPANY',
+    };
+    const longId = '12345678901234567'; // 17 digits
+    expect(longId.length).toBeGreaterThan(String(Number.MAX_SAFE_INTEGER).length);
+    const result = mapCell(longId, def);
+    expect(result.value).toBe(longId);
+    expect(typeof result.value).toBe('string');
+  });
+
   it('hs_latest_sequence_enrolled (number/number, referencedObjectType SEQUENCE) stays text', () => {
     const def: PropertyDef = {
       name: 'hs_latest_sequence_enrolled',
@@ -157,6 +172,90 @@ describe('mapCell - trap A: referencedObjectType is checked before the type/fiel
     const result = mapCell('442222359747', def);
     expectCell(result, { value: 442222359747, numFmt: NUMBER_FMT });
     expect(typeof result.value).toBe('number');
+  });
+});
+
+// hs_object_id is NOT a referencedObjectType property - it is the record's
+// OWN id, not a foreign-key pointer to another object - so trap A's guard
+// above (which only fires on referencedObjectType) does not cover it at
+// all. HubSpot's own property definition for hs_object_id declares it
+// `type: "number"` (confirmed via recon/sample-records.json: real ids like
+// "840926056668" arrive as plain numeric-looking strings, same shape as
+// associatedcompanyid before that property was known to need the
+// referencedObjectType guard). Excel/IEEE-754 doubles only keep 15-16
+// significant digits (2^53) - the exact same corruption trap FINDINGS.md
+// section 8 documents for associatedcompanyid applies equally to
+// hs_object_id. Fixed by `looksLikeIdentifierName` in lib/export/typeMap.ts:
+// hs_object_id ends in `_id`, so it is caught by name, not by a hardcoded
+// check for this specific property.
+describe('mapCell - hs_object_id: the record\'s own id, not a referencedObjectType property', () => {
+  it('a realistic (12-digit, in-range) hs_object_id round-trips fine today - this alone would not catch the defect', () => {
+    const def: PropertyDef = { name: 'hs_object_id', label: 'Record ID', type: 'number', fieldType: 'number' };
+    const result = mapCell('840926056668', def);
+    expect(String(result.value)).toBe('840926056668');
+  });
+
+  it('a 17-digit hs_object_id must be preserved exactly as text, not silently rounded into a different id by IEEE-754 double precision', () => {
+    const def: PropertyDef = { name: 'hs_object_id', label: 'Record ID', type: 'number', fieldType: 'number' };
+    const longId = '12345678901234567'; // 17 digits, unambiguously beyond safe integer precision
+    const result = mapCell(longId, def);
+    expect(result.value).toBe(longId);
+    expect(typeof result.value).toBe('string');
+  });
+
+  it('a real Excel date/number column for hs_object_id round-trips as ExcelJS.ValueType.String, not Number, at the full writer boundary', () => {
+    // Sanity check that the name-based rule also fixes columnValueType/
+    // columnWrapsText, not just mapCell - covered end-to-end (real file) in
+    // tests/export/writer.test.ts's "long ids never get silently rounded"
+    // describe block.
+    const def: PropertyDef = { name: 'hs_object_id', label: 'Record ID', type: 'number', fieldType: 'number' };
+    expect(columnValueType(def)).toBe('text');
+    expect(columnWrapsText(def)).toBe(false);
+  });
+});
+
+// The rule is NOT "hs_object_id specifically" - it is "any property whose
+// name says it's an identifier, regardless of declared type." These cases
+// prove the rule is general (covers other id-shaped names named in the
+// same finding, and any future custom property following the same
+// convention) AND narrow (an ordinary word that merely ends in the two
+// letters "id" is not a false positive).
+describe('mapCell - looksLikeIdentifierName generalises beyond hs_object_id (recon/FINDINGS.md section 8 addendum)', () => {
+  it('hs_unique_creation_key (ends in _key, not _id) is also forced to text', () => {
+    const def: PropertyDef = { name: 'hs_unique_creation_key', label: 'Unique creation key', type: 'number', fieldType: 'number' };
+    const longId = '12345678901234567'; // 17 digits
+    const result = mapCell(longId, def);
+    expect(result.value).toBe(longId);
+    expect(typeof result.value).toBe('string');
+  });
+
+  it('any custom property a portal names with an "_id" suffix is covered automatically, with no change to this file', () => {
+    const def: PropertyDef = { name: 'external_id', label: 'External ID', type: 'number', fieldType: 'number' };
+    const longId = '98765432109876543'; // 17 digits
+    const result = mapCell(longId, def);
+    expect(result.value).toBe(longId);
+    expect(typeof result.value).toBe('string');
+  });
+
+  it('does NOT false-positive on ordinary words that merely end in the letters "id" (valid, paid) - the suffix must include the underscore', () => {
+    const validDef: PropertyDef = { name: 'valid', label: 'Valid', type: 'number', fieldType: 'number' };
+    const paidDef: PropertyDef = { name: 'amountpaid', label: 'Amount Paid', type: 'number', fieldType: 'number' };
+    expect(mapCell('442222359747', validDef).value).toBe(442222359747);
+    expect(typeof mapCell('442222359747', validDef).value).toBe('number');
+    expect(mapCell('442222359747', paidDef).value).toBe(442222359747);
+    expect(typeof mapCell('442222359747', paidDef).value).toBe('number');
+  });
+
+  it('a legacy id-shaped property with no underscore (associatedcompanyid-style) is still covered, but only because of referencedObjectType, not the name pattern - the name check alone would miss it', () => {
+    // This is exactly why trap A's referencedObjectType guard is checked
+    // FIRST and kept as-is, not replaced by the name pattern: HubSpot's own
+    // pre-"_id"-convention property names (associatedcompanyid,
+    // associateddealid) don't end in "_id" and would slip through the name
+    // check alone.
+    const def: PropertyDef = { name: 'associatedcompanyid', label: 'Company', type: 'number', fieldType: 'number' };
+    expect(/_id$|_key$/.test(def.name)).toBe(false);
+    const result = mapCell('442222359747', def);
+    expect(typeof result.value).toBe('number'); // NOT text - proves the name pattern alone doesn't catch this one
   });
 });
 

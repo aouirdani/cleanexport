@@ -5,6 +5,9 @@
  *   1. referencedObjectType (section 4.0) - a property that references another
  *      object is an identifier, and its declared `type` is misleading. Checked
  *      BEFORE the type/fieldType table below, not as a special case inside it.
+ *   1b. name-shaped identifiers with NO referencedObjectType (section 4.0
+ *      addendum, recon/FINDINGS.md section 8's second half) - see
+ *      `looksLikeIdentifierName` below for why this exists and how it's scoped.
  *   2. a table-driven dispatch on `type` (DISPATCH_TABLE / mapByType) - type
  *      decides value semantics.
  *   3. `fieldType` never drives that dispatch. It only decides wrapText
@@ -55,6 +58,43 @@ const NUMBER_FMT = '#,##0.###';
 const CURRENCY_NUMBER_FMT = '#,##0.00';
 const DATETIME_FMT = 'yyyy-mm-dd hh:mm';
 const DATE_FMT = 'yyyy-mm-dd';
+
+/**
+ * `referencedObjectType` (section 4.0) only fires for a property that
+ * points at ANOTHER object - it says nothing about a record's OWN id.
+ * `hs_object_id` (every object type, always present per FINDINGS.md
+ * section 10) has no referencedObjectType at all, yet HubSpot declares
+ * it `type: "number"` - the exact same "declared type lies" trap
+ * FINDINGS.md section 8 documents for associatedcompanyid, just without
+ * the metadata flag that trap relies on to detect it. A 17-digit id
+ * parsed as a number is not a theoretical risk: IEEE-754 doubles only
+ * keep 15-16 significant digits, so it comes back as a DIFFERENT id
+ * (tests/export/typeMap.test.ts proved this concretely before this fix).
+ *
+ * The rule this function encodes is deliberately NOT "hs_object_id
+ * specifically": it's "any property whose OWN NAME says it's an
+ * identifier, regardless of what HubSpot's metadata claims its type is."
+ * HubSpot's own naming convention is the signal - every identifier or
+ * opaque-key property in the inventory this codebase has seen
+ * (hs_object_id, hubspot_owner_id, hs_unique_creation_key,
+ * hs_latest_sequence_enrolled) ends in `_id` or `_key`. Matching on that
+ * suffix, not a fixed name list, means a future object type's own
+ * `hs_object_id`, or a custom property a portal names `external_id`,
+ * is covered automatically without this file needing to know about it.
+ *
+ * Deliberately narrow, not a bare `.includes('id')`: a substring match
+ * would also catch `valid`, `paid`, `avid` - ordinary words, not
+ * identifiers. Requiring the `_id`/`_key` suffix (with the underscore,
+ * matching HubSpot's own snake_case convention for every real example
+ * seen so far) avoids that false-positive class entirely. The two
+ * pre-`_id`-convention legacy names that DON'T end this way
+ * (associatedcompanyid, associateddealid) are exactly why the
+ * referencedObjectType check above still exists and is checked first -
+ * this function is an addition to that trap, not a replacement for it.
+ */
+function looksLikeIdentifierName(name: string): boolean {
+  return /_id$|_key$/.test(name);
+}
 
 function stripHtmlTags(value: string): string {
   return value.replace(/<[^>]*>/g, '');
@@ -226,6 +266,13 @@ export function mapCell(raw: unknown, def: PropertyDef, ctx?: MapCellContext): M
     return { value: rawValue };
   }
 
+  // 1b. A record's own id (hs_object_id and friends) has no
+  // referencedObjectType to catch it - see looksLikeIdentifierName above.
+  // Never resolved (there is nothing to resolve it against, unlike OWNER).
+  if (looksLikeIdentifierName(def.name)) {
+    return { value: rawValue };
+  }
+
   // 2. type/fieldType table.
   return mapByType(rawValue, def);
 }
@@ -239,6 +286,7 @@ export function mapCell(raw: unknown, def: PropertyDef, ctx?: MapCellContext): M
 export function columnValueType(def: PropertyDef | undefined): PropertyValueKind {
   if (!def) return 'text'; // unknown/skipped property - same text fallback as the table's default rule
   if (def.referencedObjectType) return 'text'; // identifiers, incl. a resolved OWNER name, are always text
+  if (looksLikeIdentifierName(def.name)) return 'text'; // a record's own id, e.g. hs_object_id - see mapCell's 1b
   return findRule(def).kind(def);
 }
 
@@ -251,5 +299,6 @@ export function columnValueType(def: PropertyDef | undefined): PropertyValueKind
 export function columnWrapsText(def: PropertyDef | undefined): boolean {
   if (!def) return false;
   if (def.referencedObjectType) return false;
+  if (looksLikeIdentifierName(def.name)) return false; // an id never wraps, same reasoning as referencedObjectType
   return findRule(def).wraps?.(def) ?? false;
 }

@@ -161,6 +161,32 @@ Identifiers are always text. Only OWNER is resolved, via the owners cache.
 
 Note: `hubspot_owner_id` matches owner **`id`** (a string), not `userId` (a number).
 
+### The trap has a second half: a record's OWN id has no `referencedObjectType` at all
+
+`referencedObjectType` only fires for a property that points at ANOTHER object. It says
+nothing about `hs_object_id` — every object's own id, always present whether requested or
+not (§10) — which HubSpot declares `number/number`, exactly like `associatedcompanyid`,
+but with **no `referencedObjectType` flag to catch it**. Found the hard way: a portal
+selecting `hs_object_id` as an export column got it silently `parseFloat`'d like any other
+number — a 17-digit id (well past the 15-16 significant digits IEEE-754 doubles keep)
+comes back as a *different* id, same corruption as above, just with no metadata guard
+watching for it.
+
+The fix (`lib/export/typeMap.ts`'s `looksLikeIdentifierName`) is a property-NAME check,
+not a hardcoded `hs_object_id` special case: anything ending in `_id` or `_key` is forced
+to text before the type/fieldType table ever runs, checked right after the
+`referencedObjectType` check above. That catches `hs_object_id` and
+`hs_unique_creation_key` on every object type, and any custom property a portal names
+`whatever_id`, with no per-name list to maintain. It deliberately does **not** catch
+`associatedcompanyid`/`associateddealid` themselves — those predate the `_id` naming
+convention and have no underscore before "id" — which is exactly why the
+`referencedObjectType` check above still has to exist and run first; the name check is an
+addition to this trap, not a replacement for it.
+
+**Anyone reading this section and only checking `referencedObjectType`, as the original
+version of this note said, will reproduce this exact bug on the next id-shaped property
+that doesn't happen to carry that flag.** Check both.
+
 ## 9. Multi-line values — CONFIRMED
 
 The observation the entire product rests on. Property `message` (`string/textarea`),

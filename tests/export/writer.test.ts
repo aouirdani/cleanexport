@@ -192,6 +192,153 @@ describe('writeExport - invariant 3: dates are Excel dates, numbers are numbers,
     expect(row.getCell(3).type).toBe(ExcelJS.ValueType.Date);
     expect(row.getCell(3).value).toBeInstanceOf(Date);
     expect((row.getCell(3).value as Date).getTime()).toBe(new Date('2026-03-15T00:00:00.000Z').getTime());
+    // The specific defect this guards against: a HubSpot reference CSV
+    // showed "2026-08-08 20:01" as inert TEXT, unsortable and
+    // unfilterable as a date. `numFmt` (not just `type`) is what makes
+    // this a real, sortable Excel date rather than a string that merely
+    // looks date-shaped - checked here at the real read-back file level,
+    // not just typeMap.ts's isolated mapCell unit test.
+    expect(row.getCell(3).numFmt).toBe('yyyy-mm-dd');
+  });
+
+  it('a Create-Date-shaped datetime property (with a time-of-day, like HubSpot\'s own createdate/lastmodifieddate) is a real Excel date with a time-aware numFmt after a real write/read round trip', async () => {
+    const filePath = await tempFilePath('createdate.xlsx');
+    const CREATEDATE_DEF: PropertyDef = { name: 'createdate', label: 'Create Date', type: 'datetime', fieldType: 'date' };
+    const propertyDefs = new Map([['createdate', CREATEDATE_DEF]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { createdate: '2026-08-09T00:01:08.512Z' })]),
+      properties: ['createdate'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const cell = ws.getRow(2).getCell(1);
+
+    expect(cell.type).toBe(ExcelJS.ValueType.Date);
+    expect(cell.value).toBeInstanceOf(Date);
+    expect((cell.value as Date).getTime()).toBe(new Date('2026-08-09T00:01:08.512Z').getTime());
+    expect(cell.numFmt).toBe('yyyy-mm-dd hh:mm');
+  });
+});
+
+describe('writeExport - encoding: multi-byte/accented text survives a real write/read round trip intact', () => {
+  it('French, German, Polish, and Japanese text all round-trip byte-for-byte - XLSX carries its own (UTF-8) encoding, unlike HubSpot\'s BOM-less UTF-8 CSV that Excel misreads as Latin-1', async () => {
+    const filePath = await tempFilePath('encoding.xlsx');
+    const propertyDefs = new Map([
+      ['firstname', FIRSTNAME_DEF],
+      ['lastname', LASTNAME_DEF],
+      ['message', MESSAGE_DEF],
+    ]);
+    // "Première" mangled into "PremiÃ¨re" is exactly the defect observed in
+    // HubSpot's own reference export (recon/FINDINGS.md, tests/fixtures/
+    // hubspot-export-reference.csv) - here alongside a German umlaut, a
+    // Polish surname, and Japanese, none of which are representable in
+    // Latin-1 at all.
+    await writeExport({
+      filePath,
+      records: pages([
+        record('1', { firstname: 'M' + String.fromCharCode(0xfc) + 'ller', lastname: 'Kowalski', message: '日本語' }),
+      ]),
+      properties: ['firstname', 'lastname', 'message'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const row = ws.getRow(2);
+    expect(row.getCell(1).value).toBe('M' + String.fromCharCode(0xfc) + 'ller'); // Müller
+    expect(row.getCell(2).value).toBe('Kowalski');
+    expect(row.getCell(3).value).toBe('日本語');
+  });
+
+  it('the exact "Première ligne" text from the reference export round-trips intact, not mangled into "PremiÃ¨re ligne"', async () => {
+    const filePath = await tempFilePath('encoding-premiere.xlsx');
+    const propertyDefs = new Map([['message', MESSAGE_DEF]]);
+    const text = 'Premi' + E_ACUTE + 're ligne';
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { message: text })]),
+      properties: ['message'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    expect(ws.getRow(2).getCell(1).value).toBe(text);
+  });
+});
+
+// FINDINGS.md section 8's "third trap" (a referencedObjectType property's
+// declared `type` lies - it's an identifier, not a number) applies with
+// exactly the same force to hs_object_id: HubSpot's own record id. The
+// difference is that hs_object_id has NO referencedObjectType (it's the
+// record's own id, not a foreign-key pointer to another object), so the
+// referencedObjectType guard alone never covers it - lib/export/typeMap.ts's
+// looksLikeIdentifierName closes that gap by property NAME instead
+// (anything ending in `_id`/`_key`), not by hardcoding this one property.
+// This describe block checks both cases, at the real write/read file level
+// (not just typeMap.ts's isolated mapCell unit).
+describe('writeExport - long ids never get silently rounded by IEEE-754 double precision', () => {
+  it('a referencedObjectType property (e.g. associatedcompanyid) with a 17-digit id lands as a real TEXT cell, exact digits preserved', async () => {
+    const filePath = await tempFilePath('long-id-referenced.xlsx');
+    const ASSOCIATED_COMPANY_DEF: PropertyDef = {
+      name: 'associatedcompanyid',
+      label: 'Associated Company',
+      type: 'number',
+      fieldType: 'number',
+      referencedObjectType: 'COMPANY',
+    };
+    const longId = '12345678901234567'; // 17 digits
+    const propertyDefs = new Map([['associatedcompanyid', ASSOCIATED_COMPANY_DEF]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { associatedcompanyid: longId })]),
+      properties: ['associatedcompanyid'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const cell = ws.getRow(2).getCell(1);
+    expect(cell.type).toBe(ExcelJS.ValueType.String);
+    expect(cell.value).toBe(longId);
+  });
+
+  it('hs_object_id with a 17-digit value lands as text, exact digits preserved, at the real file level', async () => {
+    // hs_object_id is declared `type: "number"` by HubSpot
+    // (recon/sample-records.json: real ids arrive as plain numeric-looking
+    // strings) and carries no referencedObjectType, so it isn't caught by
+    // trap A's referencedObjectType guard. Fixed by
+    // lib/export/typeMap.ts's looksLikeIdentifierName: hs_object_id ends
+    // in `_id`, so a property-NAME check (not a hardcoded check for this
+    // one property) forces it to text before the type/fieldType table ever
+    // sees it. A 17-digit id is unambiguously beyond
+    // Number.MAX_SAFE_INTEGER (2^53, 16 digits) - see
+    // tests/export/typeMap.test.ts for the isolated unit-level proof this
+    // was a real defect before the fix (12345678901234567 silently became
+    // 12345678901234568).
+    const filePath = await tempFilePath('long-id-hs-object-id.xlsx');
+    const HS_OBJECT_ID_DEF: PropertyDef = { name: 'hs_object_id', label: 'Record ID', type: 'number', fieldType: 'number' };
+    const longId = '12345678901234567'; // 17 digits
+    const propertyDefs = new Map([['hs_object_id', HS_OBJECT_ID_DEF]]);
+
+    await writeExport({
+      filePath,
+      records: pages([record('1', { hs_object_id: longId })]),
+      properties: ['hs_object_id'],
+      propertyDefs,
+      headerStyle: 'LABEL',
+    });
+
+    const ws = await readWorkbook(filePath);
+    const cell = ws.getRow(2).getCell(1);
+    expect(cell.type).toBe(ExcelJS.ValueType.String);
+    expect(cell.value).toBe(longId);
   });
 });
 
