@@ -26,10 +26,11 @@ can't schedule any of it.
 Side by side, two images:
 
 **Left — HubSpot's CSV export**
-One contact. Four rows. The Notes field broke the record apart.
+One contact. Four rows. The Notes field broke the record apart, and the accents came out
+mangled: Klaus Müller became Klaus MÃ¼ller.
 
 **Right — CleanExport**
-The same contact. One row. Line breaks preserved inside the cell.
+The same contact. One row. Line breaks preserved inside the cell, accents intact.
 
 > Caption: This is the whole product. A file that is correct.
 
@@ -69,6 +70,9 @@ That's it. It doesn't visualise, blend sources, or write back to HubSpot.
 
 Plain answers to the things that break in every other export:
 
+**Accents survive.** HubSpot's CSV gives you `PremiÃ¨re ligne`. Ours gives you
+`Première ligne`.
+
 **Line breaks stay inside the cell.** One record is always one row. Always.
 
 **Dates are real Excel dates.** Sortable, filterable, not text that looks like a date.
@@ -79,8 +83,6 @@ Plain answers to the things that break in every other export:
 number is silently rounded into a *different* ID. We never let that happen.
 
 **Column order is yours.** We never sort it.
-
-**Headers you can automate against.** Choose internal property names, or get both rows.
 
 ---
 

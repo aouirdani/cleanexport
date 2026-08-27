@@ -113,12 +113,12 @@ const HOW_IT_WORKS = [
 ] as const
 
 const FEATURES = [
+  { title: "Accents survive", desc: "HubSpot's CSV gives you PremiÃ¨re ligne. Ours gives you Première ligne." },
   { title: "One row per record", desc: "Line breaks in Notes or multi-line fields stay inside the cell - never split across rows." },
   { title: "Real Excel dates", desc: "Date fields are real date values - sortable, filterable, usable in formulas." },
   { title: "Owner names, not IDs", desc: "Owner columns show a name, not an 8-digit numeric ID you have to decode." },
   { title: "IDs kept as text", desc: "Record IDs are stored as text so Excel can't silently round them into a different ID." },
   { title: "Your column order", desc: "Drag properties into any order. CleanExport never rearranges them behind your back." },
-  { title: "Flexible headers", desc: "Human labels, internal property names, or both rows at the top of the file." },
   { title: "Scheduled delivery", desc: "Daily, weekly, or monthly. Your file arrives without you lifting a finger." },
   { title: "Filters & associated columns", desc: "Export only the records you need, and pull in an associated company or contact's columns too." },
 ] as const
@@ -261,7 +261,7 @@ export default async function LandingPage() {
                     </thead>
                     <tbody>
                       <tr className="border-b border-border/60">
-                        <td className="px-2.5 py-1.5 align-top">Jordan Lee</td>
+                        <td className="px-2.5 py-1.5 align-top">Klaus MÃ¼ller</td>
                         <td className="px-2.5 py-1.5 align-top">Interested in Enterprise plan.</td>
                         <td className="px-2.5 py-1.5 align-top text-left">3/1/2024</td>
                         <td className="px-2.5 py-1.5 align-top font-mono">96879917</td>
@@ -290,7 +290,8 @@ export default async function LandingPage() {
                 <figcaption className="text-sm">
                   <span className="font-semibold">Left — HubSpot&apos;s CSV export.</span>{" "}
                   <span className="text-muted-foreground">
-                    One contact. Four rows. The Notes field broke the record apart.
+                    One contact. Four rows. The Notes field broke the record apart, and the accents came out
+                    mangled: Klaus Müller became Klaus MÃ¼ller.
                   </span>
                 </figcaption>
               </figure>
@@ -319,7 +320,7 @@ export default async function LandingPage() {
                     </thead>
                     <tbody>
                       <tr>
-                        <td className="px-2.5 py-1.5 align-top">Jordan Lee</td>
+                        <td className="px-2.5 py-1.5 align-top">Klaus Müller</td>
                         <td className="px-2.5 py-1.5 align-top whitespace-pre-wrap">
                           {"Interested in Enterprise plan.\nFollow up after Q3 renewal.\nWants pricing for 50 seats.\nLoop in the CS team before renewal."}
                         </td>
@@ -332,7 +333,7 @@ export default async function LandingPage() {
                 <figcaption className="text-sm">
                   <span className="font-semibold">Right — CleanExport.</span>{" "}
                   <span className="text-muted-foreground">
-                    The same contact. One row. Line breaks preserved inside the cell.
+                    The same contact. One row. Line breaks preserved inside the cell, accents intact.
                   </span>
                 </figcaption>
               </figure>
