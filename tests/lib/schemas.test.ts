@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CreateExportSchema } from '@/lib/schemas';
+import { CreateExportSchema, PatchExportSchema } from '@/lib/schemas';
 
 const BASE = {
   name: 'My Export',
@@ -119,5 +119,68 @@ describe('CreateExportSchema', () => {
 
   it('rejects a non-email recipient', () => {
     expect(CreateExportSchema.safeParse({ ...BASE, recipients: ['not-an-email'] }).success).toBe(false);
+  });
+
+  // A raw */5 * * * * schedule is a well-formed 5-field cron (passes
+  // CRON_SHAPE) that fires 288 times a day - nothing previously stopped it
+  // from being saved. The minimum enforced is one hour - see
+  // lib/schemas.ts's MIN_SCHEDULE_INTERVAL_MINUTES for why that specific
+  // number, not something coarser or finer.
+  describe('sub-hourly schedules are rejected', () => {
+    it('rejects a 5-minute step ("*/5 * * * *") - the exact incident this closes', () => {
+      const result = CreateExportSchema.safeParse({ ...BASE, scheduleCron: '*/5 * * * *' });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((i) => i.message).join(' ')).toMatch(/once per hour/);
+      }
+    });
+
+    it('rejects a wildcard minute field ("* * * * *") - fires every single minute', () => {
+      expect(CreateExportSchema.safeParse({ ...BASE, scheduleCron: '* * * * *' }).success).toBe(false);
+    });
+
+    it('rejects a comma list in the minute field ("0,30 * * * *") - twice an hour', () => {
+      expect(CreateExportSchema.safeParse({ ...BASE, scheduleCron: '0,30 * * * *' }).success).toBe(false);
+    });
+
+    it('rejects a range in the minute field ("0-10 * * * *") - eleven times an hour', () => {
+      expect(CreateExportSchema.safeParse({ ...BASE, scheduleCron: '0-10 * * * *' }).success).toBe(false);
+    });
+
+    it('rejects a step even when it technically resolves to at most once per hour ("0/60 * * * *") - simplicity over cleverness', () => {
+      expect(CreateExportSchema.safeParse({ ...BASE, scheduleCron: '0/60 * * * *' }).success).toBe(false);
+    });
+
+    it('accepts a single fixed minute ("0 * * * *") - fires once an hour, exactly at the floor', () => {
+      expect(CreateExportSchema.safeParse({ ...BASE, scheduleCron: '0 * * * *' }).success).toBe(true);
+    });
+
+    it('accepts every existing preset (lib/schedulePresets.ts) - daily/weekly/monthly all have a single fixed minute', () => {
+      expect(CreateExportSchema.safeParse({ ...BASE, scheduleCron: '0 6 * * *' }).success).toBe(true); // daily
+      expect(CreateExportSchema.safeParse({ ...BASE, scheduleCron: '0 6 * * 1' }).success).toBe(true); // weekly
+      expect(CreateExportSchema.safeParse({ ...BASE, scheduleCron: '0 6 1 * *' }).success).toBe(true); // monthly
+    });
+
+    it('a non-zero but still-single-value minute ("15 * * * *") is accepted - the rule is "one literal value", not "must be zero"', () => {
+      expect(CreateExportSchema.safeParse({ ...BASE, scheduleCron: '15 * * * *' }).success).toBe(true);
+    });
+  });
+});
+
+describe('PatchExportSchema', () => {
+  it('accepts { isActive: true }', () => {
+    expect(PatchExportSchema.safeParse({ isActive: true }).success).toBe(true);
+  });
+
+  it('accepts { isActive: false }', () => {
+    expect(PatchExportSchema.safeParse({ isActive: false }).success).toBe(true);
+  });
+
+  it('rejects a missing isActive', () => {
+    expect(PatchExportSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('rejects a non-boolean isActive', () => {
+    expect(PatchExportSchema.safeParse({ isActive: 'true' }).success).toBe(false);
   });
 });

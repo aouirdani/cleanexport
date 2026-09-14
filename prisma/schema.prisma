@@ -58,11 +58,27 @@ model ExportDefinition {
   scheduleCron  String?
   scheduleTz    String      @default("Europe/Paris")
   recipients    String[]
+  /// Whether the SCHEDULE may currently fire - flipped by the dashboard's
+  /// pause/resume toggle (PATCH /api/exports/:id). Independent of
+  /// `deletedAt`: a paused export still appears in the dashboard and can be
+  /// resumed; export.schedule.tick's own query already filters on this
+  /// field, so pausing takes effect immediately with no other change
+  /// needed. Also set false by DELETE (soft delete), alongside `deletedAt`.
   isActive      Boolean     @default(true)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   lastRunAt     DateTime?
   nextRunAt     DateTime?
+  /// Soft-delete marker - null means live. Deliberately a SEPARATE field
+  /// from `isActive`: pause (isActive=false, deletedAt=null, still visible,
+  /// resumable) and delete (isActive=false, deletedAt=now(), hidden,
+  /// permanent from the UI) are different actions with different
+  /// reversibility, and collapsing them onto one boolean would make a
+  /// paused export indistinguishable from a deleted one - the dashboard
+  /// could not show "Resume" for one and hide the other. Run history
+  /// (ExportRun) is kept even after delete, same as everywhere else in
+  /// this app that a lapsed subscription doesn't erase past data.
+  deletedAt     DateTime?
 
   portal        Portal      @relation(fields: [portalId], references: [id], onDelete: Cascade)
   runs          ExportRun[]

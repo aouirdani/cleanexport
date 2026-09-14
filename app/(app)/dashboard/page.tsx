@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { RunStatusBadge, type RunStatusValue } from "@/components/dashboard/run-status-badge"
 import { RunNowButton } from "@/components/dashboard/run-now-button"
+import { ExportRowActions } from "@/components/dashboard/export-row-actions"
 import { formatDateTime, describeSchedule } from "@/components/dashboard/format"
 import { Badge } from "@/components/ui/badge"
 import { Table2, Plus } from "lucide-react"
@@ -30,13 +31,18 @@ export default async function DashboardPage() {
   const current = await getCurrentSession()
   if (!current.ok) redirect("/")
 
+  // isActive is NOT part of this filter - a paused export (isActive:
+  // false) must stay visible with a Resume action, only a soft-deleted
+  // one (deletedAt set) actually disappears. See prisma/schema.prisma's
+  // ExportDefinition.deletedAt comment for why these are separate fields.
   const exports = await prisma.exportDefinition.findMany({
-    where: { portalId: current.portal.id, isActive: true },
+    where: { portalId: current.portal.id, deletedAt: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       name: true,
       objectType: true,
+      isActive: true,
       scheduleCron: true,
       scheduleTz: true,
       nextRunAt: true,
@@ -82,14 +88,18 @@ export default async function DashboardPage() {
                   className="flex flex-col gap-3 px-5 py-3.5 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-medium">{exportDef.name}</p>
+                    <p className="flex items-center gap-1.5 truncate text-[13px] font-medium">
+                      {exportDef.name}
+                      {!exportDef.isActive && <Badge variant="outline">Paused</Badge>}
+                    </p>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
                       <span>{OBJECT_TYPE_LABEL[exportDef.objectType] ?? exportDef.objectType}</span>
                       <span aria-hidden>·</span>
                       {schedule === "MANUAL" && <span>Manual only</span>}
                       {schedule === "SCHEDULED" && (
                         <span>
-                          Scheduled (<span className="font-mono">{exportDef.scheduleTz}</span>)
+                          {exportDef.isActive ? "Scheduled" : "Schedule paused"} (
+                          <span className="font-mono">{exportDef.scheduleTz}</span>)
                         </span>
                       )}
                       {schedule === "INVALID" && <Badge variant="destructive">Schedule needs attention</Badge>}
@@ -124,6 +134,7 @@ export default async function DashboardPage() {
                       latestStatus={latest?.status as RunStatusValue | undefined}
                       latestStale={latest?.stale}
                     />
+                    <ExportRowActions exportId={exportDef.id} exportName={exportDef.name} isActive={exportDef.isActive} />
                   </div>
                 </li>
               )

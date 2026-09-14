@@ -424,4 +424,32 @@ describe('scheduleTickHandler - the real WHERE clause and subscription select, f
     expect(result).toEqual({ schedulesDue: 0 });
     expect(fakePrisma.runs).toHaveLength(0);
   });
+
+  // The dashboard's pause toggle (app/api/exports/[id]/route.ts's PATCH)
+  // flips isActive to false - this is what stops a runaway schedule
+  // without any change to scheduleTickHandler itself: the WHERE clause it
+  // already sends already filters on isActive, so a paused export is
+  // excluded at the query level, identically to how the un-disconnected-
+  // portal and lapsed-subscription cases above are proven.
+  it('a paused export (isActive: false) is excluded by the WHERE clause itself, even with an overdue nextRunAt - never selected, no run created', async () => {
+    const fakePrisma = makeQueryAwarePrisma([
+      {
+        id: 'export-paused',
+        portalId: 'portal-paused',
+        isActive: false, // paused via PATCH /api/exports/:id
+        scheduleCron: '*/15 * * * *',
+        scheduleTz: 'UTC',
+        nextRunAt: new Date(Date.now() - 60 * 60 * 1000), // an hour overdue - would fire immediately if selected
+        disconnectedAt: null,
+        subscription: { status: 'ACTIVE', trialEndsAt: null, pastDueSince: null },
+      },
+    ]);
+    const dbModule = await import('@/lib/db');
+    (dbModule as { prisma: unknown }).prisma = fakePrisma;
+
+    const result = await scheduleTickHandler({ step: makeStep(), send: vi.fn(async () => ({ ids: [] })) });
+
+    expect(result).toEqual({ schedulesDue: 0 });
+    expect(fakePrisma.runs).toHaveLength(0);
+  });
 });

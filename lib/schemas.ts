@@ -59,6 +59,44 @@ export const AssociationsSchema = z.object({
  *  validated here; the matcher itself is the source of truth for per-field syntax. */
 const CRON_SHAPE = /^\S+\s+\S+\s+\S+\s+\S+\s+\S+$/;
 
+/**
+ * The floor on how often a schedule may fire. The builder UI only offers
+ * daily/weekly/monthly presets (lib/schedulePresets.ts), but this field
+ * accepts any 5-field cron shape, so nothing previously stopped a
+ * hand-crafted request from saving `*\/5 * * * *` - a schedule that fires
+ * every 5 minutes, 288 times a day, against a RUN_EXPORT limit of 20/day
+ * and whatever the customer's own email provider tolerates before flagging
+ * the sending domain as spam.
+ *
+ * One hour, not something coarser or finer:
+ *   - Strictly stricter than every existing preset (all daily-or-coarser),
+ *     so no schedule anyone has already saved is invalidated by this change.
+ *   - It's an honest escape valve: a customer who genuinely needs
+ *     tighter-than-daily refresh (e.g. hourly during business hours) has a
+ *     real way to express that, rather than the floor being so coarse it
+ *     pushes them toward a dishonest workaround.
+ *   - It keeps the worst case bounded to a sane number - at most 24
+ *     runs/day per export, close to (and self-limiting against) the
+ *     existing RUN_EXPORT cap of 20/day, not 288 or 1440.
+ *
+ * Enforced by requiring the MINUTE field to be a single literal value (no
+ * wildcard, list, range, or step): with an unconstrained hour field
+ * (`*`), the minute field is the only place a cron can encode firing more
+ * than once per hour, so constraining just that one field is sufficient.
+ * A minute-field step that happens to still resolve to at most once per
+ * hour (e.g. "0/60") is rejected too, for simplicity - no legitimate
+ * schedule needs one, and allowing it would reopen exactly the parsing
+ * complexity this simple rule is meant to avoid.
+ */
+export const MIN_SCHEDULE_INTERVAL_MINUTES = 60;
+
+const SINGLE_LITERAL_MINUTE = /^\d+$/;
+
+function respectsMinScheduleInterval(cron: string): boolean {
+  const [minuteField] = cron.trim().split(/\s+/);
+  return SINGLE_LITERAL_MINUTE.test(minuteField);
+}
+
 export const CreateExportSchema = z
   .object({
     name: z.string().min(1).max(120),
@@ -76,6 +114,10 @@ export const CreateExportSchema = z
     scheduleCron: z
       .string()
       .regex(CRON_SHAPE, 'Expected a 5-field cron expression (minute hour day-of-month month day-of-week)')
+      .refine(respectsMinScheduleInterval, {
+        message:
+          'Schedules can run at most once per hour - use a single fixed minute (e.g. "0 * * * *"), not a wildcard, list, range, or step in the minute field.',
+      })
       .nullable()
       .optional(),
     scheduleTz: z.string().default('Europe/Paris'),
@@ -87,6 +129,20 @@ export const CreateExportSchema = z
   });
 
 export type CreateExportInput = z.infer<typeof CreateExportSchema>;
+
+/**
+ * PATCH /api/exports/:id's body. specs/06-API-CONTRACT.md describes PATCH
+ * generically as "partial update," but the only caller today is the
+ * dashboard's pause/resume toggle (specs/AGENTS.md rule 1: implement the
+ * task given, nothing else) - so this only accepts `isActive` for now.
+ * Widen it, and the route that reads it, together if a future task needs
+ * to PATCH other fields.
+ */
+export const PatchExportSchema = z.object({
+  isActive: z.boolean(),
+});
+
+export type PatchExportInput = z.infer<typeof PatchExportSchema>;
 
 /** specs/01-PRD.md A7: "$29/month or $290/year." POST /api/billing/checkout's body. */
 export const CheckoutSchema = z.object({
