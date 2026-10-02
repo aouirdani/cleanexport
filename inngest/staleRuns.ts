@@ -11,8 +11,10 @@
  * MAX_RUN_MS, enforced from inside the running step). This cron applies
  * the SAME 30-minute rule (lib/runs.ts's STALE_RUN_MS/isRunStale - one
  * constant, not two) to the case that in-process check can never catch: a
- * run that never started running at all. Every 5 minutes (well under the
- * 30-minute threshold, so nothing sits stale for long) it marks any
+ * run that never started running at all. Hourly (a database wake costs ~5 minutes of Neon compute, so
+ * this runs as rarely as is harmless: app/api/exports/[id]/run/route.ts already
+ * treats a stale run as not-in-flight, so "Run now" is never blocked by one
+ * while this waits for its next tick) it marks any
  * QUEUED/RUNNING run older than that as FAILED with errorCode TIMEOUT - the
  * same code a genuinely-overlong run gets - so the record stops lying about
  * being in progress.
@@ -35,6 +37,7 @@
 
 import { inngest } from './client';
 import { prisma } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { RunStatus } from '@/lib/generated/prisma/client';
 import { ErrorCode } from '@/lib/errors';
 import { STALE_RUN_MS } from '@/lib/runs';
@@ -42,7 +45,7 @@ import { STALE_RUN_MS } from '@/lib/runs';
 const BATCH_SIZE = 500;
 
 export const staleRunsSweep = inngest.createFunction(
-  { id: 'export-stale-runs-sweep', triggers: [{ cron: '*/5 * * * *' }] },
+  { id: 'export-stale-runs-sweep', triggers: [{ cron: '0 * * * *' }] },
   async ({ step }) => {
     const cutoff = new Date(Date.now() - STALE_RUN_MS);
 
@@ -72,6 +75,7 @@ export const staleRunsSweep = inngest.createFunction(
       failedCount += result.count;
     }
 
+    logger.info('cron.tick', { fn: 'export-stale-runs-sweep', rowsFound: stale.length, rowsChanged: failedCount });
     return { staleCount: stale.length, failedCount };
   },
 );

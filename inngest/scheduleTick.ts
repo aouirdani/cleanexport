@@ -1,6 +1,6 @@
 /**
- * export.schedule.tick - specs/02-ARCHITECTURE.md section 4: every 15
- * minutes, find due schedules and emit export.run.requested for each.
+ * export.schedule.tick - specs/02-ARCHITECTURE.md section 4: every hour
+ * (was 15 minutes - see the cron below), find due schedules and emit export.run.requested for each.
  *
  * No cron-parsing library is a project dependency (adding one is out of
  * scope for this file - scope is inngest/ + app/api/inngest/route.ts, not
@@ -10,7 +10,7 @@
  * occurrence by brute-force minute stepping. That is intentionally simple
  * rather than clever: a closed-form "next cron occurrence" calculation is a
  * well-known source of off-by-one and DST bugs, and this only ever runs once
- * per due export per 15-minute tick, so raw iteration cost is irrelevant.
+ * per due export per tick, so raw iteration cost is irrelevant.
  *
  * Idempotency: claiming a due schedule is a compare-and-swap on
  * ExportDefinition.nextRunAt (updateMany matching the exact value just read).
@@ -25,6 +25,7 @@
 
 import { inngest } from './client';
 import { prisma } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { RunStatus, Trigger } from '@/lib/generated/prisma/client';
 import { isSubscriptionLapsed } from '@/lib/plan';
 
@@ -164,10 +165,18 @@ export async function scheduleTickHandler({ step, send = inngest.send.bind(innge
     });
   }
 
+  logger.info('cron.tick', { fn: 'export-schedule-tick', rowsFound: due.length, rowsChanged: due.length });
   return { schedulesDue: due.length };
 }
 
 export const scheduleTick = inngest.createFunction(
-  { id: 'export-schedule-tick', triggers: [{ cron: '*/15 * * * *' }] },
+  // Hourly: lib/schemas.ts's MIN_SCHEDULE_INTERVAL_MINUTES already forbids
+  // sub-hourly schedules, so a tick more often than hourly can only fire a
+  // schedule earlier than its hour, never serve one that exists. Each tick wakes
+  // the Neon compute (~5 min billed); at 15 minutes that was 96 wakes a day.
+  // Worst-case lateness: a schedule fires at the first tick after its nextRunAt,
+  // i.e. up to 59 minutes late for a non-:00 minute ("30 6 * * *"); schedules on
+  // the hour in a whole-hour-offset timezone fire on time.
+  { id: 'export-schedule-tick', triggers: [{ cron: '0 * * * *' }] },
   scheduleTickHandler,
 );

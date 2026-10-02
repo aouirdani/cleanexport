@@ -1,7 +1,10 @@
 /**
- * hubspot.token.refresh - specs/02-ARCHITECTURE.md section 4 (hourly cron);
+ * hubspot.token.refresh - specs/02-ARCHITECTURE.md section 4 (originally an hourly cron, now every 6 hours);
  * specs/04-HUBSPOT-INTEGRATION.md section 2: "Refresh proactively on the
- * hourly cron for anything expiring in under 2 hours."
+ * cron for anything expiring in under 2 hours." Every 6 hours, not hourly:
+ * access tokens live ~30 minutes, so a proactive refresh is never what keeps a
+ * token valid - HubSpotClient refreshes reactively on 401 - and each wake of the
+ * database costs ~5 minutes of Neon compute.
  *
  * Calls the OAuth token endpoint directly (lib/hubspot/oauth.ts's
  * refreshAccessToken), the same function HubSpotClient's own private
@@ -14,6 +17,7 @@
 
 import { inngest } from './client';
 import { prisma } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { decrypt, encrypt } from '@/lib/crypto';
 import { refreshAccessToken, expiresAtFrom, GrantRevokedError } from '@/lib/hubspot/oauth';
 import { disablePortalOnRevocation } from './revocation';
@@ -21,7 +25,7 @@ import { disablePortalOnRevocation } from './revocation';
 const REFRESH_MARGIN_MS = 2 * 60 * 60 * 1000; // 2 hours - matches lib/hubspot/client.ts's own margin
 
 export const tokenRefresh = inngest.createFunction(
-  { id: 'hubspot-token-refresh', triggers: [{ cron: '0 * * * *' }] },
+  { id: 'hubspot-token-refresh', triggers: [{ cron: '0 */6 * * *' }] },
   async ({ step }) => {
     const dueBy = new Date(Date.now() + REFRESH_MARGIN_MS);
 
@@ -53,6 +57,7 @@ export const tokenRefresh = inngest.createFunction(
       });
     }
 
+    logger.info('cron.tick', { fn: 'hubspot-token-refresh', rowsFound: portals.length, rowsChanged: portals.length });
     return { portalsRefreshed: portals.length };
   },
 );

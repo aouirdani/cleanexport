@@ -33,6 +33,7 @@
 
 import { inngest } from './client';
 import { prisma } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { loadR2Config, deleteFileFromR2 } from './r2';
 
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -63,6 +64,7 @@ export const r2Cleanup = inngest.createFunction(
       });
     }
 
+    logger.info('cron.tick', { fn: 'r2-cleanup', rowsFound: staleRuns.length, rowsChanged: staleRuns.length });
     return { deletedCount: staleRuns.length };
   },
 );

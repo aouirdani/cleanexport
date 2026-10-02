@@ -3,8 +3,8 @@
  *
  * The three functions specced there register against this client:
  *   export.run.requested   (event)  - runs one export, writes file, sends email
- *   export.schedule.tick   (cron)   - every 15 min, finds due schedules
- *   hubspot.token.refresh  (cron)   - hourly, refreshes tokens expiring in < 2h
+ *   export.schedule.tick   (cron)   - hourly, finds due schedules
+ *   hubspot.token.refresh  (cron)   - every 6h, refreshes tokens expiring in < 2h
  * plus one more added by T14 (specs/07-TASKS.md), a cron with no event of
  * its own:
  *   r2-cleanup              (cron)   - daily, deletes ExportRun rows and their
