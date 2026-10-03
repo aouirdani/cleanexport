@@ -27,13 +27,37 @@ const VARIANT: Record<RunStatusValue, "success" | "destructive" | "secondary" | 
   CANCELLED: "outline",
 }
 
-/** A small solid dot, colored to match the badge's own variant - Stripe's
+/**
+ * Status gets its own palette, not a shade of the one accent color: QUEUED
+ * and CANCELLED are deliberately neutral (nothing to act on), RUNNING is
+ * amber (in progress, not yet a verdict - the same amber already used for
+ * billing/reconnect warnings elsewhere in this shell), SUCCESS is green,
+ * FAILED is red and must be legible from across the room. These override
+ * the base `variant` colors via `cn` (clsx + tailwind-merge, so the later
+ * classes win regardless of the variant's own bg/border/text) rather than
+ * relying on the design system's "secondary" variant reading as amber,
+ * which it does not - "secondary" and "outline" look the same as every
+ * other neutral pill on this screen, which was exactly the complaint.
+ * FAILED reuses the --destructive token (border/bg/text-destructive) rather
+ * than a separate red, so it matches every other destructive affordance in
+ * the app (delete button, error text, "Stalled" badge below) instead of
+ * introducing a second, slightly different red.
+ */
+const STATUS_CLASSNAME: Record<RunStatusValue, string> = {
+  QUEUED: "border-border bg-muted text-muted-foreground",
+  RUNNING: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
+  SUCCESS: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
+  FAILED: "border-destructive/30 bg-destructive/10 text-destructive",
+  CANCELLED: "border-border bg-muted text-muted-foreground",
+}
+
+/** A small solid dot, colored to match the badge's own status - Stripe's
  *  own status pills carry the state in color + text alone, never a per-
  *  status icon set (Clock/RefreshCw/CircleCheck/... was decoration once the
  *  badge's color and label already say the same thing twice). */
 const DOT: Record<RunStatusValue, string> = {
   QUEUED: "bg-muted-foreground/50",
-  RUNNING: "bg-foreground/60",
+  RUNNING: "bg-amber-500",
   SUCCESS: "bg-emerald-500",
   FAILED: "bg-destructive",
   CANCELLED: "bg-muted-foreground/50",
@@ -58,7 +82,7 @@ export function RunStatusBadge({ status, stale = false }: { status: RunStatusVal
   }
 
   return (
-    <Badge variant={VARIANT[status]}>
+    <Badge variant={VARIANT[status]} className={cn(STATUS_CLASSNAME[status], "font-medium")}>
       <span aria-hidden className={cn("size-1.5 rounded-full", DOT[status], status === "RUNNING" && "animate-pulse")} />
       {LABEL[status]}
     </Badge>

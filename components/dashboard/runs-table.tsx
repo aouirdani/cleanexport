@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { RunStatusBadge, type RunStatusValue } from "@/components/dashboard/run-status-badge"
 import { formatDateTime, formatRowCount } from "@/components/dashboard/format"
 import { Button } from "@/components/ui/button"
+import { History } from "lucide-react"
 
 export interface RunRow {
   id: string
@@ -66,26 +67,31 @@ export function RunsTable({ initialRuns, exportId }: { initialRuns: RunRow[]; ex
 
   if (runs.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card py-10 text-center">
-        <p className="text-sm text-muted-foreground">
-          No runs yet. Runs you trigger manually or on a schedule will show up here.
+      <div className="flex flex-col items-center rounded-xl border border-border bg-card px-4 py-16 text-center shadow-sm">
+        <div aria-hidden className="mb-5 grid size-12 place-items-center rounded-xl border border-border bg-muted">
+          <History className="size-5 text-muted-foreground" strokeWidth={1.75} />
+        </div>
+        <h2 className="text-lg font-semibold tracking-tight">No runs yet</h2>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+          Runs you trigger manually, or that fire on a schedule, will show up here with their status and a
+          download link.
         </p>
       </div>
     )
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead>
-            <tr className="border-b border-border text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-              <th className="py-2.5 pr-4 pl-5 font-medium">Export</th>
-              <th className="py-2.5 pr-4 font-medium">Status</th>
-              <th className="py-2.5 pr-4 font-medium">Started</th>
-              <th className="py-2.5 pr-4 font-medium">Rows</th>
-              <th className="py-2.5 pr-4 font-medium">Trigger</th>
-              <th className="py-2.5 pr-5 font-medium text-right">File</th>
+            <tr className="border-b border-border bg-muted/40 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              <th className="py-3 pr-4 pl-5 font-medium">Export</th>
+              <th className="py-3 pr-4 font-medium">Status</th>
+              <th className="py-3 pr-4 font-medium">Started</th>
+              <th className="py-3 pr-4 font-medium">Rows</th>
+              <th className="py-3 pr-4 font-medium">Trigger</th>
+              <th className="py-3 pr-5 font-medium text-right">File</th>
             </tr>
           </thead>
           <tbody>
@@ -103,17 +109,17 @@ function RunRowView({ run }: { run: RunRow }) {
   return (
     <>
       <tr className="border-b border-border/60 align-top transition-colors last:border-0 hover:bg-muted/40">
-        <td className="py-3 pr-4 pl-5 text-[13px] font-medium">{run.exportName}</td>
+        <td className="py-3 pr-4 pl-5 text-sm font-medium">{run.exportName}</td>
         <td className="py-3 pr-4">
           <RunStatusBadge status={run.status} stale={run.stale} />
         </td>
-        <td className="py-3 pr-4 font-mono text-[13px] tabular-nums whitespace-nowrap text-muted-foreground">
+        <td className="py-3 pr-4 font-mono text-sm tabular-nums whitespace-nowrap text-muted-foreground">
           {formatDateTime(run.startedAt ?? run.createdAt)}
         </td>
-        <td className="py-3 pr-4 font-mono text-[13px] tabular-nums whitespace-nowrap text-muted-foreground">
+        <td className="py-3 pr-4 font-mono text-sm tabular-nums whitespace-nowrap text-muted-foreground">
           {formatRowCount(run.rowCount)}
         </td>
-        <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground">
+        <td className="py-3 pr-4 text-sm whitespace-nowrap text-muted-foreground">
           {run.trigger === "SCHEDULE" ? "Schedule" : "Manual"}
         </td>
         <td className="py-3 pr-5 text-right">

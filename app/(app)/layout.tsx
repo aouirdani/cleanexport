@@ -69,7 +69,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             ) : (
               <span className="hidden text-xs text-muted-foreground sm:inline">{portalLabel}</span>
             )}
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
+                isDisconnected
+                  ? "border-destructive/30 bg-destructive/10 text-destructive"
+                  : "border-border text-muted-foreground"
+              }`}
+            >
               <span
                 className={`size-1.5 rounded-full ${isDisconnected ? "bg-destructive" : "bg-emerald-500"}`}
                 aria-hidden

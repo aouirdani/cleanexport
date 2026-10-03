@@ -49,35 +49,41 @@
 }
 
 :root {
-  /* Stripe Dashboard visual language pass. Values only - these ARE our
-     token names, so every existing bg-background/text-foreground/
-     border-border className etc. keeps working unchanged. Light-first:
-     near-white page background, white surfaces, hairline borders (not
-     shadows) for depth, one indigo-violet accent reserved for primary
-     buttons/focus rings/selected rows, and a cool (slightly blue) grey
-     scale everywhere else instead of a neutral one. */
+  /* Definition pass (Linear/Attio feel, not Stripe). Values only - these
+     ARE our token names, so every existing bg-background/text-foreground/
+     border-border className etc. keeps working unchanged. The previous
+     Stripe-dashboard pass pushed --background and --card to nearly the
+     same near-white value and relied on a 1px --border alone for depth;
+     on our sparse screens that read as flat rather than restrained. Cards
+     now sit on a visibly darker/cooler page canvas, get a hover shadow in
+     the markup (no new token needed for that - Tailwind's own shadow
+     utilities), and --muted-foreground drops a notch so secondary text
+     has real contrast against the white surface instead of nearly
+     matching it. --primary/--destructive/--radius are unchanged - the
+     accent was already correctly scoped to primary actions only; the
+     fix is contrast and depth, not a new palette. */
   --card: #ffffff; /* was #ffffff - unchanged, surfaces stay white */
-  --card-foreground: #1a1f36; /* was #18181b - Stripe's cool ink, not neutral black */
+  --card-foreground: #1a1f36; /* was #1a1f36 - unchanged */
   --popover: #ffffff; /* was #ffffff - unchanged */
-  --popover-foreground: #1a1f36; /* was #18181b */
-  --primary: #635bff; /* was #6366f1 - Stripe's indigo-violet, THE one accent */
+  --popover-foreground: #1a1f36; /* was #1a1f36 - unchanged */
+  --primary: #635bff; /* was #635bff - unchanged, still THE one accent */
   --primary-foreground: #ffffff; /* unchanged */
-  --secondary: #f0f2f5; /* was #f5f5f5 - cool grey, not neutral */
-  --secondary-foreground: #1a1f36; /* was #18181b */
-  --muted: #f0f2f5; /* was #f5f5f5 */
-  --muted-foreground: #6b7280; /* was #71717a - cool slate, one more step in the grey scale */
-  --accent: #f0f2f5; /* was #f5f5f5 */
-  --accent-foreground: #1a1f36; /* was #18181b */
-  --destructive: #d1193f; /* was #b91c1c - Stripe-red rather than a brick red */
-  --border: #e3e8ee; /* was #e4e4e7 - the hairline that replaces shadows for depth */
-  --input: #cbd2d9; /* was #d4d4d8 - one step darker than --border, for form-control edges */
-  --ring: #635bff; /* was #6366f1 - matches --primary */
+  --secondary: #dfe4ec; /* was #f0f2f5 - a shade darker than the new --background, same ordering as before this pass (muted darker than page), so bg-muted/30 banding on app/page.tsx still reads against --background instead of vanishing into an identical color */
+  --secondary-foreground: #1a1f36; /* was #1a1f36 - unchanged */
+  --muted: #dfe4ec; /* was #f0f2f5 */
+  --muted-foreground: #475569; /* was #6b7280 - a full step darker so labels/meta text have real contrast against white cards instead of nearly washing out */
+  --accent: #dfe4ec; /* was #f0f2f5 */
+  --accent-foreground: #1a1f36; /* was #1a1f36 - unchanged */
+  --destructive: #d1193f; /* was #d1193f - unchanged */
+  --border: #d7dee6; /* was #e3e8ee - a shade more visible now that it's doing real separation work, not the only source of depth */
+  --input: #bcc6d1; /* was #cbd2d9 - one step darker than --border, for form-control edges */
+  --ring: #635bff; /* was #635bff - unchanged, matches --primary */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.5rem; /* was 0.625rem - Stripe's tighter, less-rounded corners */
+  --radius: 0.5rem; /* was 0.5rem - unchanged */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -86,8 +92,8 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --background: #f6f8fb; /* was #fafafa - near-white with a cool tint, not neutral */
-  --foreground: #1a1f36; /* was #18181b */
+  --background: #e8ecf2; /* was #f6f8fb - a real shade darker/cooler than --card, so cards visibly sit ON the page instead of blending into it */
+  --foreground: #1a1f36; /* was #1a1f36 - unchanged */
 }
 
 .dark {
