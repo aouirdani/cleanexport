@@ -170,21 +170,27 @@ function ConnectCta({
   label,
   className,
   size,
+  variant,
 }: {
   signedIn: boolean
   label: string
   className?: string
   size?: "default" | "sm" | "lg"
+  /** Left undefined (the primary/indigo default) everywhere except the nav
+   *  bar - the nav's own CTA must not be the same visual weight as the
+   *  hero's, or the first screen has two "primary" buttons competing for
+   *  attention instead of one unmistakable one. */
+  variant?: "outline"
 }) {
   if (signedIn) {
     return (
-      <Button size={size} className={className} render={<Link href="/dashboard" />} nativeButton={false}>
+      <Button size={size} variant={variant} className={className} render={<Link href="/dashboard" />} nativeButton={false}>
         Go to dashboard
       </Button>
     )
   }
   return (
-    <Button size={size} className={className} render={<a href="/api/auth/hubspot/start" />} nativeButton={false}>
+    <Button size={size} variant={variant} className={className} render={<a href="/api/auth/hubspot/start" />} nativeButton={false}>
       {label}
       <ArrowRight aria-hidden />
     </Button>
@@ -218,34 +224,95 @@ export default async function LandingPage() {
                 Go to dashboard
               </Link>
             )}
-            {!signedIn && <ConnectCta signedIn={false} label="Start free trial" size="sm" />}
+            {!signedIn && <ConnectCta signedIn={false} label="Start free trial" size="sm" variant="outline" />}
           </div>
         </div>
       </header>
 
       <main className="flex flex-col">
-        {/* 1. Hero */}
-        <section className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-20 sm:py-28">
-          <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            Your HubSpot data. In a correct Excel file. Every Monday.
-          </h1>
-          <p className="max-w-xl text-lg leading-8 text-muted-foreground">
-            HubSpot won&apos;t export a dashboard report to Excel. Its CSV export splits one contact into four rows
-            when a Notes field contains line breaks. Column order isn&apos;t preserved. And you can&apos;t schedule
-            any of it.
-          </p>
-          <p className="max-w-xl text-lg leading-8 font-semibold">
-            CleanExport does one thing: your report, as a clean{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] font-normal">.xlsx</code>, on a
-            schedule.
-          </p>
-          <div className="flex flex-col items-start gap-2">
-            <ConnectCta signedIn={signedIn} label="Connect HubSpot" className="h-11 px-6 text-base" size="lg" />
+        {/* 1. Hero - headline/CTA on the left, a real fragment of the
+            before/after proof (section 2's own "after" table, same markup,
+            unchanged) on the right, so the first viewport shows the product
+            working instead of just a paragraph. The full before/after pair
+            with its "Left —" caption keeps its own section below, where
+            "Left —" still means what it says. */}
+        <section>
+          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-12 px-6 py-20 sm:py-28 lg:grid-cols-[1.1fr_1fr] lg:gap-10">
+            <div className="flex flex-col gap-8">
+              <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+                Your HubSpot data. In a correct Excel file. Every Monday.
+              </h1>
+              <div className="flex flex-col gap-4">
+                <p className="max-w-xl text-lg leading-8 text-muted-foreground">
+                  HubSpot won&apos;t export a dashboard report to Excel. Its CSV export splits one contact into four
+                  rows when a Notes field contains line breaks. Column order isn&apos;t preserved. And you
+                  can&apos;t schedule any of it.
+                </p>
+                <p className="max-w-xl text-lg leading-8 font-semibold">
+                  CleanExport does one thing: your report, as a clean{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] font-normal">.xlsx</code>,
+                  on a schedule.
+                </p>
+              </div>
+              <div className="flex flex-col items-start gap-2">
+                <ConnectCta
+                  signedIn={signedIn}
+                  label="Connect HubSpot"
+                  className="h-12 px-7 text-base shadow-sm transition-shadow hover:shadow-md"
+                  size="lg"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <figure className="flex flex-col gap-3">
+                <div className="overflow-x-auto rounded-lg border border-primary/30 bg-background">
+                  <table className="w-full min-w-max text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/50">
+                        <th className="px-2.5 py-2 align-bottom font-medium">
+                          <div>Name</div>
+                          <div className="text-[9px] font-normal tracking-wider text-muted-foreground uppercase">text</div>
+                        </th>
+                        <th className="px-2.5 py-2 align-bottom font-medium">
+                          <div>Notes</div>
+                          <div className="text-[9px] font-normal tracking-wider text-muted-foreground uppercase">text</div>
+                        </th>
+                        <th className="px-2.5 py-2 align-bottom font-medium text-right">
+                          <div>Date created</div>
+                          <div className="text-[9px] font-normal tracking-wider text-muted-foreground uppercase">date</div>
+                        </th>
+                        <th className="px-2.5 py-2 align-bottom font-medium">
+                          <div>Owner</div>
+                          <div className="text-[9px] font-normal tracking-wider text-muted-foreground uppercase">text</div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="px-2.5 py-1.5 align-top">Klaus Müller</td>
+                        <td className="px-2.5 py-1.5 align-top whitespace-pre-wrap">
+                          {"Interested in Enterprise plan.\nFollow up after Q3 renewal.\nWants pricing for 50 seats.\nLoop in the CS team before renewal."}
+                        </td>
+                        <td className="px-2.5 py-1.5 align-top text-right font-mono tabular-nums">2024-03-01</td>
+                        <td className="px-2.5 py-1.5 align-top">Alex Rivera</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <figcaption className="text-sm">
+                  <span className="font-semibold">Right — CleanExport.</span>{" "}
+                  <span className="text-muted-foreground">
+                    The same contact. One row. Line breaks preserved inside the cell, accents intact.
+                  </span>
+                </figcaption>
+              </figure>
+            </div>
           </div>
         </section>
 
         {/* 2. Our before/after comparison tables - kept exactly as built, not the reference's placeholder screenshots. */}
-        <section className="border-t border-border bg-muted/30">
+        <section className="border-t border-border bg-muted/50">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-16">
             <div className="grid gap-4 sm:grid-cols-2">
               <figure className="flex flex-col gap-2">
@@ -346,13 +413,16 @@ export default async function LandingPage() {
 
         {/* 3. Reassurance strip - adopted from the reference. */}
         <section className="border-t border-border">
-          <div className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-8 px-6 py-14 text-center sm:grid-cols-4">
+          <div className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-4 px-6 py-14 text-center sm:grid-cols-4">
             {REASSURANCES.map(({ icon: Icon, label, sub }) => (
-              <div key={label} className="flex flex-col items-center gap-2">
-                <div className="grid size-11 place-items-center rounded-xl border border-border bg-muted/40">
+              <div
+                key={label}
+                className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
+              >
+                <div className="grid size-11 place-items-center rounded-xl border border-border bg-muted">
                   <Icon className="size-5 text-muted-foreground" aria-hidden strokeWidth={1.75} />
                 </div>
-                <p className="text-[13px] font-medium">{label}</p>
+                <p className="text-sm font-medium">{label}</p>
                 <p className="text-xs text-muted-foreground">{sub}</p>
               </div>
             ))}
@@ -360,7 +430,7 @@ export default async function LandingPage() {
         </section>
 
         {/* 4. The problem - six real defects, each traced to a probed HubSpot API behaviour. */}
-        <section id="the-problem" className="border-t border-border bg-muted/30">
+        <section id="the-problem" className="border-t border-border bg-muted/50">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16">
             <div className="mx-auto max-w-xl text-center">
               <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">The problem</p>
@@ -417,7 +487,7 @@ export default async function LandingPage() {
         </section>
 
         {/* 6. Features grid. */}
-        <section id="features" className="border-t border-border bg-muted/30">
+        <section id="features" className="border-t border-border bg-muted/50">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16">
             <div className="mx-auto max-w-xl text-center">
               <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Features</p>
@@ -459,7 +529,7 @@ export default async function LandingPage() {
         </section>
 
         {/* 8. Pricing - real numbers only. */}
-        <section id="pricing" className="border-t border-border bg-muted/30">
+        <section id="pricing" className="border-t border-border bg-muted/50">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16">
             <div className="mx-auto max-w-xl text-center">
               <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Pricing</p>
