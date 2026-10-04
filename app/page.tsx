@@ -41,6 +41,10 @@ import {
   Columns3,
   CalendarClock,
   CheckCircle2,
+  Workflow,
+  Megaphone,
+  Building2,
+  Wallet,
 } from "lucide-react"
 
 export const dynamic = "force-dynamic"
@@ -86,6 +90,31 @@ const PROBLEMS = [
   {
     title: "Arbitrary column order",
     desc: "HubSpot decides which columns go where. Every export is a scavenger hunt.",
+  },
+] as const
+
+// Who uses CleanExport - four real prospects, each with their own use case.
+// The one section on this page with new copy, written for this addition.
+const PERSONAS = [
+  {
+    icon: Workflow,
+    title: "RevOps teams",
+    desc: "A weekly deal export, ready before the Monday pipeline review - every time, without anyone pulling it from HubSpot by hand.",
+  },
+  {
+    icon: Megaphone,
+    title: "Marketing ops",
+    desc: "Contact lists with Notes and other multi-line fields intact - no rows broken apart before a campaign.",
+  },
+  {
+    icon: Building2,
+    title: "HubSpot agencies",
+    desc: "The same export definition, running on schedule across every client portal you manage.",
+  },
+  {
+    icon: Wallet,
+    title: "Finance",
+    desc: "Deal amounts and close dates in a sortable sheet - real numbers and real dates, not text to clean up first.",
   },
 ] as const
 
@@ -314,6 +343,7 @@ export default async function LandingPage() {
         {/* 2. Our before/after comparison tables - kept exactly as built, not the reference's placeholder screenshots. */}
         <section className="border-t border-border bg-muted/50">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-16">
+            <p className="text-center text-xs font-medium tracking-wide text-primary uppercase">Proof</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <figure className="flex flex-col gap-2">
                 <div className="overflow-x-auto rounded-lg border border-border bg-background">
@@ -433,7 +463,7 @@ export default async function LandingPage() {
         <section id="the-problem" className="border-t border-border bg-muted/50">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16">
             <div className="mx-auto max-w-xl text-center">
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">The problem</p>
+              <p className="text-xs font-medium tracking-wide text-primary uppercase">The problem</p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">HubSpot&apos;s native export is broken</h2>
               <p className="mt-3 text-muted-foreground">
                 HubSpot&apos;s own product team has confirmed dashboard-to-Excel export is not on the roadmap. Here&apos;s
@@ -458,24 +488,49 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* 4b. Who uses CleanExport - the one new section, new copy. */}
+        <section id="who-its-for">
+          <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16">
+            <div className="mx-auto max-w-xl text-center">
+              <p className="text-xs font-medium tracking-wide text-primary uppercase">Who it&apos;s for</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Who uses CleanExport</h2>
+              <p className="mt-3 text-muted-foreground">Different teams. The same Monday morning problem.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {PERSONAS.map((persona) => (
+                <div
+                  key={persona.title}
+                  className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-5 text-center"
+                >
+                  <div className="grid size-11 place-items-center rounded-xl border border-border bg-muted">
+                    <persona.icon className="size-5 text-primary" aria-hidden strokeWidth={1.75} />
+                  </div>
+                  <h3 className="text-sm font-medium">{persona.title}</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{persona.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* 5. How it works - four numbered steps. */}
         <section id="how-it-works" className="border-t border-border">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16">
             <div className="mx-auto max-w-xl text-center">
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">How it works</p>
+              <p className="text-xs font-medium tracking-wide text-primary uppercase">How it works</p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Set it up in about 5 minutes</h2>
               <p className="mt-3 text-muted-foreground">No code, no data team, no BI connector - just a clean file in your inbox.</p>
             </div>
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
               {HOW_IT_WORKS.map((step, i) => (
                 <div key={step.title} className="flex flex-col items-center text-center">
-                  <div className="relative grid size-14 place-items-center rounded-2xl border border-border bg-muted/40">
-                    <step.icon className="size-5 text-muted-foreground" aria-hidden strokeWidth={1.75} />
-                    <span className="absolute -top-2 -right-2 grid size-5 place-items-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
-                      {i + 1}
-                    </span>
+                  <span aria-hidden className="pointer-events-none text-6xl font-bold tracking-tight text-primary/15 select-none">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div className="-mt-7 grid size-14 place-items-center rounded-2xl border border-border bg-card shadow-sm">
+                    <step.icon className="size-5 text-primary" aria-hidden strokeWidth={1.75} />
                   </div>
-                  <h3 className="mt-4 text-[13px] font-medium">{step.title}</h3>
+                  <h3 className="mt-4 text-sm font-medium">{step.title}</h3>
                   <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{step.desc}</p>
                 </div>
               ))}
@@ -490,7 +545,7 @@ export default async function LandingPage() {
         <section id="features" className="border-t border-border bg-muted/50">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16">
             <div className="mx-auto max-w-xl text-center">
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Features</p>
+              <p className="text-xs font-medium tracking-wide text-primary uppercase">What you get</p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Everything your export should be</h2>
               <p className="mt-3 text-muted-foreground">CleanExport does one thing and does it right: a file that is correct.</p>
             </div>
@@ -532,7 +587,7 @@ export default async function LandingPage() {
         <section id="pricing" className="border-t border-border bg-muted/50">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16">
             <div className="mx-auto max-w-xl text-center">
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Pricing</p>
+              <p className="text-xs font-medium tracking-wide text-primary uppercase">Pricing</p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">One plan. Simple pricing.</h2>
               <p className="mt-3 text-muted-foreground">No hidden tiers. No per-seat fees. Just one flat rate.</p>
             </div>
@@ -601,7 +656,10 @@ export default async function LandingPage() {
         {/* 9. FAQ */}
         <section id="faq" className="border-t border-border">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-16">
-            <h2 className="text-xl font-semibold tracking-tight">FAQ</h2>
+            <div>
+              <p className="text-xs font-medium tracking-wide text-primary uppercase">Questions</p>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight">FAQ</h2>
+            </div>
             <dl className="flex flex-col gap-6">
               {FAQ.map(({ q, a }) => (
                 <div key={q}>

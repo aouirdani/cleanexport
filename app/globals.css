@@ -49,24 +49,24 @@
 }
 
 :root {
-  /* Definition pass (Linear/Attio feel, not Stripe). Values only - these
-     ARE our token names, so every existing bg-background/text-foreground/
-     border-border className etc. keeps working unchanged. The previous
-     Stripe-dashboard pass pushed --background and --card to nearly the
-     same near-white value and relied on a 1px --border alone for depth;
-     on our sparse screens that read as flat rather than restrained. Cards
-     now sit on a visibly darker/cooler page canvas, get a hover shadow in
-     the markup (no new token needed for that - Tailwind's own shadow
-     utilities), and --muted-foreground drops a notch so secondary text
-     has real contrast against the white surface instead of nearly
-     matching it. --primary/--destructive/--radius are unchanged - the
-     accent was already correctly scoped to primary actions only; the
-     fix is contrast and depth, not a new palette. */
+  /* Definition pass (Linear/Attio feel, not Stripe), then aligned to the
+     reportmaker.ai reference palette. Values only - these ARE our token
+     names, so every existing bg-background/text-foreground/border-border
+     className etc. keeps working unchanged. --primary now matches the
+     reference's #6366F1 exactly (it was already close) and --background
+     matches the reference's cool near-white #F8FAFC - cards stay pure
+     white, so the page-vs-card separation now leans on --border and the
+     shadow-on-hover already in the markup rather than on a visibly darker
+     canvas. White-on-#6366F1 contrast is ~4.47:1 - passes AA for large/
+     bold UI text and the 3:1 UI-component threshold; a hair under 4.5:1
+     for small regular-weight text, same as this hex matching Tailwind's
+     indigo-500 everywhere it's used as a button fill. --muted/--border
+     etc. are unchanged from the previous pass - not part of this request. */
   --card: #ffffff; /* was #ffffff - unchanged, surfaces stay white */
   --card-foreground: #1a1f36; /* was #1a1f36 - unchanged */
   --popover: #ffffff; /* was #ffffff - unchanged */
   --popover-foreground: #1a1f36; /* was #1a1f36 - unchanged */
-  --primary: #635bff; /* was #635bff - unchanged, still THE one accent */
+  --primary: #6366f1; /* was #635bff - aligned to the reportmaker.ai reference accent exactly */
   --primary-foreground: #ffffff; /* unchanged */
   --secondary: #dfe4ec; /* was #f0f2f5 - a shade darker than the new --background, same ordering as before this pass (muted darker than page), so bg-muted/30 banding on app/page.tsx still reads against --background instead of vanishing into an identical color */
   --secondary-foreground: #1a1f36; /* was #1a1f36 - unchanged */
@@ -77,7 +77,7 @@
   --destructive: #d1193f; /* was #d1193f - unchanged */
   --border: #d7dee6; /* was #e3e8ee - a shade more visible now that it's doing real separation work, not the only source of depth */
   --input: #bcc6d1; /* was #cbd2d9 - one step darker than --border, for form-control edges */
-  --ring: #635bff; /* was #635bff - unchanged, matches --primary */
+  --ring: #6366f1; /* was #635bff - matches the new --primary */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -92,7 +92,7 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --background: #e8ecf2; /* was #f6f8fb - a real shade darker/cooler than --card, so cards visibly sit ON the page instead of blending into it */
+  --background: #f8fafc; /* was #e8ecf2 - matches the reportmaker.ai reference's cool near-white exactly; --card stays pure #ffffff, --border stays the visible #d7dee6 set in the previous pass, so cards still read as sitting ON the page via border + the hover shadows already in the markup, not via a dark page canvas */
   --foreground: #1a1f36; /* was #1a1f36 - unchanged */
 }
 
@@ -106,7 +106,7 @@
   --card-foreground: #fafafa;
   --popover: #111113;
   --popover-foreground: #fafafa;
-  --primary: #635bff; /* was #6366f1 - same accent as light mode */
+  --primary: #6366f1; /* was #635bff - matches the light-mode accent again */
   --primary-foreground: #ffffff;
   --secondary: #18181b;
   --secondary-foreground: #fafafa;
@@ -117,7 +117,7 @@
   --destructive: #f87171;
   --border: #27272a;
   --input: #3f3f46;
-  --ring: #635bff; /* was #6366f1 */
+  --ring: #6366f1; /* was #635bff - matches --primary */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
