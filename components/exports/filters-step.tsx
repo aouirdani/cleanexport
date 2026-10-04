@@ -18,7 +18,7 @@ interface PropertyOption {
 }
 
 const SELECT_CLASS =
-  "h-8 rounded-lg border border-input bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+  "h-11 rounded-[6px] border border-input bg-transparent px-2 text-table shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 interface FiltersStepProps {
   objectType: ObjectTypeValue
@@ -73,14 +73,14 @@ function FiltersStepInner({ objectType, conditions, onChange }: FiltersStepProps
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <h3 className="text-sm font-medium">Filters (optional)</h3>
-        <p className="text-xs text-muted-foreground">
+        <h3 className="text-section-title font-semibold">Filters (optional)</h3>
+        <p className="text-metadata text-muted-foreground">
           Up to {MAX_FILTER_CONDITIONS} conditions, all must match (AND only).
         </p>
       </div>
 
       {conditions.length === 0 && (
-        <p className="text-sm text-muted-foreground">No filters - every record will be exported.</p>
+        <p className="text-table text-muted-foreground">No filters - every record will be exported.</p>
       )}
 
       <div className="flex flex-col gap-2">
@@ -100,7 +100,7 @@ function FiltersStepInner({ objectType, conditions, onChange }: FiltersStepProps
           Add condition
         </Button>
         {atCap && (
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-metadata text-muted-foreground">
             {MAX_FILTER_CONDITIONS} is the maximum for the MVP - split into a second export if you need more.
           </p>
         )}
@@ -125,7 +125,7 @@ function FilterConditionRow({
   const needsValues = condition.operator === "IN";
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-2">
+    <div className="flex flex-wrap items-center gap-2 rounded-[6px] border border-border p-3">
       <select
         aria-label="Property"
         className={SELECT_CLASS}

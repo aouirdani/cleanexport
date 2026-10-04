@@ -23,8 +23,8 @@ export function AssociationsStep({
   if (!value) {
     return (
       <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium">Associations (optional)</h3>
-        <p className="text-sm text-muted-foreground">
+        <h3 className="text-section-title font-semibold">Associations (optional)</h3>
+        <p className="text-copy text-muted-foreground">
           Bring in columns from an associated record - for example a deal&apos;s company name.
         </p>
         <div>
@@ -44,19 +44,19 @@ export function AssociationsStep({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Associations (optional)</h3>
+        <h3 className="text-section-title font-semibold">Associations (optional)</h3>
         <Button type="button" variant="ghost" size="sm" onClick={() => onChange(null)}>
           Remove association
         </Button>
       </div>
 
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-xs text-muted-foreground">Bring in columns from</legend>
+        <legend className="text-metadata text-muted-foreground">Bring in columns from</legend>
         <div role="radiogroup" aria-label="Associated object type" className="flex gap-2">
           {targets.map((target) => (
             <label
               key={target.value}
-              className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-sm transition-colors hover:bg-muted has-[:focus-visible]:border-ring has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+              className="flex cursor-pointer items-center gap-1.5 rounded-[6px] border border-border px-2.5 py-1.5 text-table transition-colors hover:bg-muted has-[:focus-visible]:border-ring has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
             >
               <input
                 type="radio"

@@ -18,7 +18,7 @@ export function HeaderStyleStep({
 }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-1 text-sm font-medium">Header row</legend>
+      <legend className="mb-1 text-section-title font-semibold">Header row</legend>
       <div role="radiogroup" aria-label="Header style" className="flex flex-col gap-2">
         {OPTIONS.map((option) => {
           const checked = value === option.value;
@@ -26,7 +26,7 @@ export function HeaderStyleStep({
             <label
               key={option.value}
               className={cn(
-                "flex cursor-pointer items-start gap-2.5 rounded-lg border border-border px-3 py-2.5 text-sm transition-colors hover:bg-muted",
+                "flex min-h-11 cursor-pointer items-start gap-2.5 rounded-[6px] border border-border px-3 py-2.5 text-table transition-colors hover:bg-muted",
                 "has-[:focus-visible]:border-ring has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50",
                 checked && "border-primary bg-primary/5",
               )}
@@ -41,7 +41,7 @@ export function HeaderStyleStep({
               />
               <span>
                 <span className="block font-medium">{option.label}</span>
-                <span className="block text-xs text-muted-foreground">{option.description}</span>
+                <span className="block text-metadata text-muted-foreground">{option.description}</span>
               </span>
             </label>
           );

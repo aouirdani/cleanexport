@@ -41,13 +41,13 @@ export function ObjectTypeStep({
             question below into this field instead of naming the export. This
             note plus a placeholder with no schedule/object-type vocabulary in
             it is the fix; a HubSpot object type is picked below, not here. */}
-        <p className="text-xs text-muted-foreground">
+        <p className="text-metadata text-muted-foreground">
           Just a label for your own reference - the object type and schedule are chosen separately below.
         </p>
       </div>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1 text-sm font-medium">Object type</legend>
+        <legend className="mb-1 text-section-title font-semibold">Object type</legend>
         <div role="radiogroup" aria-label="Object type" className="grid gap-2 sm:grid-cols-2">
           {OBJECT_TYPE_OPTIONS.map((option) => {
             const checked = value === option.value;
@@ -55,7 +55,7 @@ export function ObjectTypeStep({
               <label
                 key={option.value}
                 className={cn(
-                  "flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2.5 text-[13px] transition-colors hover:bg-muted",
+                  "flex min-h-11 cursor-pointer items-center gap-2 rounded-[6px] border border-border px-3 py-2.5 text-table transition-colors hover:bg-muted",
                   "has-[:focus-visible]:border-ring has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50",
                   checked && "border-primary bg-primary/5",
                 )}

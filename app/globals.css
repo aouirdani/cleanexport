@@ -27,6 +27,14 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-info: var(--info);
+  --color-info-surface: var(--info-surface);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -46,44 +54,97 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Role-based type scale (ported design system). Each pairs a size with
+     its OWN line-height, in rem, so `text-metadata` etc. set both together
+     instead of every call site hand-pairing text-[13px] with its own
+     leading-* guess. Two roles (page-title, metadata) land on Tailwind's
+     existing 2xl/xs sizes exactly - still named here so every role is
+     equally discoverable by what it's FOR, not by what pixel value it
+     happens to share. */
+  --text-metadata: 0.75rem; /* 12px */
+  --text-metadata--line-height: 1rem; /* 16px */
+  --text-status: 0.8125rem; /* 13px - status badges, timestamps */
+  --text-status--line-height: 1.25rem; /* 20px */
+  --text-table: 0.875rem; /* 14px - table cells, form controls */
+  --text-table--line-height: 1.375rem; /* 22px */
+  --text-copy: 1rem; /* 16px - reading copy */
+  --text-copy--line-height: 1.5rem; /* 24px */
+  --text-section-title: 1.125rem; /* 18px */
+  --text-section-title--line-height: 1.5rem; /* 24px */
+  --text-page-title: 1.5rem; /* 24px */
+  --text-page-title--line-height: 2rem; /* 32px */
+
+  /* Spacing scale (ported design system): 4/8/12/16/24/32/48/64 is exactly
+     Tailwind's own 1/2/3/4/6/8/12/16 steps already - no override needed,
+     named here only as the record of which steps are "in the system" for
+     this pass (p-5, gap-7, py-9 etc. are now off-scale). */
 }
 
 :root {
-  /* Definition pass (Linear/Attio feel, not Stripe), then aligned to the
-     reportmaker.ai reference palette. Values only - these ARE our token
-     names, so every existing bg-background/text-foreground/border-border
-     className etc. keeps working unchanged. --primary now matches the
-     reference's #6366F1 exactly (it was already close) and --background
-     matches the reference's cool near-white #F8FAFC - cards stay pure
-     white, so the page-vs-card separation now leans on --border and the
-     shadow-on-hover already in the markup rather than on a visibly darker
-     canvas. White-on-#6366F1 contrast is ~4.47:1 - passes AA for large/
-     bold UI text and the 3:1 UI-component threshold; a hair under 4.5:1
-     for small regular-weight text, same as this hex matching Tailwind's
-     indigo-500 everywhere it's used as a button fill. --muted/--border
-     etc. are unchanged from the previous pass - not part of this request. */
-  --card: #ffffff; /* was #ffffff - unchanged, surfaces stay white */
-  --card-foreground: #1a1f36; /* was #1a1f36 - unchanged */
+  /* Ported from an external design-system analysis. Values only - these
+     ARE our token names, so every existing bg-background/text-foreground/
+     border-border className etc. keeps working unchanged. --primary is
+     the one deliberate departure from that analysis (which suggested
+     #2859C5): kept at our own #6366F1 rather than switched, because this
+     token is shared with the landing page (out of scope for this pass)
+     and that page was deliberately matched to this exact hex last pass -
+     switching here would fracture the brand between the two screens for
+     no gain, since the new neutrals are desaturated enough to pair with
+     either hue. Still ~4.47:1 white-on-primary, same as before.
+     --success/--warning are NEW tokens (the app had no formal success/
+     warning color, just ad-hoc emerald/amber Tailwind classes scattered
+     per component) - wired into RunStatusBadge et al. so "success" and
+     "failure" are a real palette, not a shade of the one accent.
+     --input is kept as this app's control-border token rather than
+     adding a parallel "control-border" name: it's already wired to
+     `border-input` wherever a bordered form control exists in this
+     scope, and a brand-new token would have no effect on the shadcn
+     Button/Input primitives (out of scope, can't be edited here) anyway -
+     so re-using the existing name is the only version of "add a
+     stronger control border" that actually renders. Its value is now a
+     full step darker than --border, same relationship as before. */
+  --background: #f5f6f8; /* was #f8fafc - external analysis's canvas */
+  --foreground: #20242c; /* was #1a1f36 - external analysis's ink */
+  --card: #ffffff; /* was #ffffff - unchanged, work surfaces stay pure white */
+  --card-foreground: #20242c; /* was #1a1f36 - matches new --foreground */
   --popover: #ffffff; /* was #ffffff - unchanged */
-  --popover-foreground: #1a1f36; /* was #1a1f36 - unchanged */
-  --primary: #6366f1; /* was #635bff - aligned to the reportmaker.ai reference accent exactly */
+  --popover-foreground: #20242c; /* was #1a1f36 - matches new --foreground */
+  --primary: #6366f1; /* was #6366f1 - unchanged, see note above: kept over the analysis's #2859C5 for brand consistency with the landing page */
   --primary-foreground: #ffffff; /* unchanged */
-  --secondary: #dfe4ec; /* was #f0f2f5 - a shade darker than the new --background, same ordering as before this pass (muted darker than page), so bg-muted/30 banding on app/page.tsx still reads against --background instead of vanishing into an identical color */
-  --secondary-foreground: #1a1f36; /* was #1a1f36 - unchanged */
-  --muted: #dfe4ec; /* was #f0f2f5 */
-  --muted-foreground: #475569; /* was #6b7280 - a full step darker so labels/meta text have real contrast against white cards instead of nearly washing out */
-  --accent: #dfe4ec; /* was #f0f2f5 */
-  --accent-foreground: #1a1f36; /* was #1a1f36 - unchanged */
-  --destructive: #d1193f; /* was #d1193f - unchanged */
-  --border: #d7dee6; /* was #e3e8ee - a shade more visible now that it's doing real separation work, not the only source of depth */
-  --input: #bcc6d1; /* was #cbd2d9 - one step darker than --border, for form-control edges */
-  --ring: #6366f1; /* was #635bff - matches the new --primary */
+  --secondary: #eceff3; /* was #dfe4ec - external analysis's muted fill */
+  --secondary-foreground: #20242c; /* was #1a1f36 - matches new --foreground */
+  --muted: #eceff3; /* was #dfe4ec */
+  --muted-foreground: #596371; /* was #475569 - external analysis's muted-fg */
+  --accent: #eceff3; /* was #dfe4ec */
+  --accent-foreground: #20242c; /* was #1a1f36 - matches new --foreground */
+  --destructive: #b42332; /* was #d1193f - external analysis's destructive */
+  --success: #17633d; /* unchanged - was not previously named; ad-hoc emerald-* classes did this job before */
+  /* --success-surface through --info-surface: NEW paired surface tokens
+     (status-surface port). Light-mode pairs are derived, not from the
+     reference (which only gave dark values) - each surface is a pale tint
+     of the status hue (not plain --muted) and each text color is a dark,
+     saturated shade of that same hue, verified >=4.5:1 against its own
+     surface (computed via WCAG relative-luminance, not eyeballed):
+     success 6.3:1, danger 5.4:1, warning 6.3:1, info 5.8:1. --danger
+     reuses --destructive's exact light hex (#b42332) rather than a second,
+     slightly-different red - one failure-red hue in the app, not two. */
+  --success-surface: #e1f3e7;
+  --danger: #b42332;
+  --danger-surface: #fbe4e6;
+  --warning: #795000; /* unchanged - was not previously named; ad-hoc amber-* classes did this job before */
+  --warning-surface: #fbf0dc;
+  --info: #1d4ed8;
+  --info-surface: #e7eeff;
+  --border: #dde1e7; /* was #d7dee6 - external analysis's resting border */
+  --input: #aab4c0; /* was #bcc6d1 - this app's control-border token (see note above); kept a full step darker than --border for interactive-field edges */
+  --ring: #6366f1; /* was #6366f1 - unchanged, matches --primary */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.5rem; /* was 0.5rem - unchanged */
+  --radius: 0.625rem; /* was 0.5rem - 10px, so --radius-lg (work surfaces/cards, the unmultiplied base) lands on the spec's "work surfaces 10px" exactly. --radius-md (0.8x = 8px) is the closest this shared scale gets to the spec's "controls 6px" without editing the out-of-scope Button/Input primitives that actually consume it; the hand-authored controls within this pass's scope (exports/* option rows, the filters-step select) are set to an explicit 6px instead - see those files. */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -92,32 +153,44 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --background: #f8fafc; /* was #e8ecf2 - matches the reportmaker.ai reference's cool near-white exactly; --card stays pure #ffffff, --border stays the visible #d7dee6 set in the previous pass, so cards still read as sitting ON the page via border + the hover shadows already in the markup, not via a dark page canvas */
-  --foreground: #1a1f36; /* was #1a1f36 - unchanged */
 }
 
 .dark {
-  /* Kept working, not redesigned - the brief is "design for light." Only
-     --primary/--ring shift, to match the new indigo-violet accent used in
-     light mode; everything else is untouched from before this pass. */
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #111113;
-  --card-foreground: #fafafa;
-  --popover: #111113;
-  --popover-foreground: #fafafa;
-  --primary: #6366f1; /* was #635bff - matches the light-mode accent again */
+  /* Ported from the same external analysis as :root. Dark mode REMAPS
+     roles rather than inverting light values - --destructive/--success/
+     --warning are each their own lighter, desaturated-for-dark-bg tone
+     (not just "the light value, but light"), the way the analysis
+     specified them, not a formula applied to the light hexes. */
+  --background: #14171c; /* was #09090b - external analysis's dark canvas */
+  --foreground: #edf0f5; /* was #fafafa - external analysis's dark-mode ink */
+  --card: #1c2027; /* was #111113 - external analysis's dark work surface */
+  --card-foreground: #edf0f5; /* was #fafafa - matches new --foreground */
+  --popover: #1c2027; /* was #111113 - matches new --card */
+  --popover-foreground: #edf0f5; /* was #fafafa - matches new --foreground */
+  --primary: #6366f1; /* was #6366f1 - unchanged, matches the light-mode accent */
   --primary-foreground: #ffffff;
-  --secondary: #18181b;
-  --secondary-foreground: #fafafa;
-  --muted: #18181b;
-  --muted-foreground: #a1a1aa;
-  --accent: #18181b;
-  --accent-foreground: #fafafa;
-  --destructive: #f87171;
-  --border: #27272a;
-  --input: #3f3f46;
-  --ring: #6366f1; /* was #635bff - matches --primary */
+  --secondary: #272d36; /* was #18181b - external analysis's dark muted fill */
+  --secondary-foreground: #edf0f5; /* was #fafafa - matches new --foreground */
+  --muted: #272d36; /* was #18181b */
+  --muted-foreground: #a9b3c1; /* was #a1a1aa - external analysis's dark muted-fg */
+  --accent: #272d36; /* was #18181b */
+  --accent-foreground: #edf0f5; /* was #fafafa - matches new --foreground */
+  --destructive: #ffadb5; /* was #f87171 - external analysis's dark-mode destructive (a light rose, legible as text/icon on a dark surface, not the light-mode red just lightened) */
+  --success: #8bd8a9; /* unchanged - dark-mode success (light mint, same "readable text on dark" logic as destructive) */
+  /* --success-surface through --info-surface: NEW, straight from the
+     status-surface reference (dark values given directly, not derived).
+     --danger matches --destructive's exact dark hex (#ffadb5) - same
+     one-red-hue reasoning as light mode. */
+  --success-surface: #1a3328;
+  --danger: #ffadb5;
+  --danger-surface: #3c242a;
+  --warning: #f0cb75; /* unchanged - dark-mode warning (light amber) */
+  --warning-surface: #382f1c;
+  --info: #a7c2ff;
+  --info-surface: #232f47;
+  --border: #343c47; /* was #27272a - external analysis's dark resting border */
+  --input: #636c78; /* was #3f3f46 - this app's control-border token in dark mode, a full step lighter than --border so it's "stronger"/more visible against the dark canvas, mirroring the light-mode relationship */
+  --ring: #6366f1; /* was #6366f1 - unchanged, matches --primary */
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

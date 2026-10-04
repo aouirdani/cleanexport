@@ -65,11 +65,11 @@ export function PreviewPanel({ state }: { state: BuilderState }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-[13px] font-medium">Preview</h3>
-          <p className="text-xs text-muted-foreground">
+          <h3 className="text-section-title font-semibold">Preview</h3>
+          <p className="text-metadata text-muted-foreground">
             Up to 20 real rows, run through the exact same pipeline as a real export.
           </p>
         </div>
@@ -79,9 +79,9 @@ export function PreviewPanel({ state }: { state: BuilderState }) {
       </div>
 
       {!ready && (
-        <p className="text-xs text-muted-foreground">Name the export, pick an object type, and select at least one property to preview it.</p>
+        <p className="text-metadata text-muted-foreground">Name the export, pick an object type, and select at least one property to preview it.</p>
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-status text-destructive">{error}</p>}
       {result && <PreviewTable columns={result.columns} sampleRows={result.sampleRows} />}
     </div>
   );
@@ -101,7 +101,7 @@ function PreviewTable({ columns, sampleRows }: PreviewResponse) {
     // specs/07-TASKS.md T18: "an empty result says '0 records matched your
     // filters', never a blank table with no explanation."
     return (
-      <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+      <p className="rounded-md border border-dashed border-border p-4 text-center text-table text-muted-foreground">
         0 records matched your filters.
       </p>
     );
@@ -109,14 +109,14 @@ function PreviewTable({ columns, sampleRows }: PreviewResponse) {
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full min-w-max text-left text-sm">
+      <table className="w-full min-w-max text-left text-table">
         <thead>
           <tr className="border-b border-border bg-muted/50">
             {columns.map((col) => (
               <th key={col.key} className="whitespace-nowrap px-2.5 py-2 align-bottom font-medium">
-                <div className="text-[13px]">{col.header}</div>
+                <div className="text-table">{col.header}</div>
                 {/* specs/07-TASKS.md T18: "each header shows the column's type." */}
-                <div className="text-[10px] font-normal tracking-wider text-muted-foreground uppercase">{col.type}</div>
+                <div className="text-metadata font-normal tracking-wider text-muted-foreground uppercase">{col.type}</div>
               </th>
             ))}
           </tr>

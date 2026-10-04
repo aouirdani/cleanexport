@@ -189,9 +189,9 @@ function PropertyPickerInner({
             </Label>
           </div>
 
-          {loadError && <p className="text-sm text-destructive">{loadError}</p>}
+          {loadError && <p className="text-status text-destructive">{loadError}</p>}
           {properties === null && !loadError && (
-            <p className="text-sm text-muted-foreground">Loading properties…</p>
+            <p className="text-table text-muted-foreground">Loading properties…</p>
           )}
 
           {properties !== null && (
@@ -205,7 +205,7 @@ function PropertyPickerInner({
               onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
             >
               {available.length === 0 ? (
-                <p className="p-3 text-sm text-muted-foreground">No properties match your search.</p>
+                <p className="p-3 text-table text-muted-foreground">No properties match your search.</p>
               ) : (
                 <div style={{ height: range.totalHeight, position: "relative" }}>
                   <div style={{ transform: `translateY(${range.offsetY}px)` }}>
@@ -229,7 +229,7 @@ function PropertyPickerInner({
         {/* Selected pane */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">
+            <span className="text-table font-medium">
               Selected ({selected.length}/{cap})
             </span>
           </div>
@@ -247,14 +247,14 @@ function PropertyPickerInner({
             />
           </div>
           {atCap && (
-            <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+            <p className="rounded-md bg-warning/10 px-2.5 py-1.5 text-metadata text-warning">
               You&apos;ve reached the {cap}-property limit. More columns than that produce a slow, unusable
               file - remove one to add another.
             </p>
           )}
           <ol className="h-80 overflow-y-auto rounded-lg border border-border bg-card" aria-label={`Selected ${itemNoun}, in column order`}>
             {selectedDetails.length === 0 ? (
-              <p className="p-3 text-sm text-muted-foreground">
+              <p className="p-3 text-table text-muted-foreground">
                 Nothing selected yet. Pick properties on the left - they&apos;ll appear here in column order.
               </p>
             ) : (
@@ -320,7 +320,7 @@ function PropertyRow({
         aria-selected={checked}
         disabled={disabled}
         onClick={onToggle}
-        className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left text-table transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
       >
         <input
           type="checkbox"
@@ -333,7 +333,7 @@ function PropertyRow({
         />
         <span className="min-w-0 flex-1 truncate">
           <span className="truncate font-medium">{property.label}</span>{" "}
-          <span className="truncate font-mono text-xs text-muted-foreground">{property.name}</span>
+          <span className="truncate font-mono text-metadata text-muted-foreground">{property.name}</span>
         </span>
         <PropertyMeta property={property} />
       </button>
@@ -343,7 +343,7 @@ function PropertyRow({
       {property.description && (
         <span
           role="tooltip"
-          className="pointer-events-none absolute top-full left-2 z-10 mt-1 hidden max-w-xs rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover/row:block group-focus-within/row:block"
+          className="pointer-events-none absolute top-full left-2 z-10 mt-1 hidden max-w-xs rounded-md border border-border bg-popover px-2 py-1 text-metadata text-popover-foreground shadow-md group-hover/row:block group-focus-within/row:block"
         >
           {property.description}
         </span>
@@ -382,14 +382,14 @@ function SelectedRow({
         e.preventDefault();
         onDropOn();
       }}
-      className="flex items-center gap-2 border-b border-border/60 px-2.5 py-2 text-sm transition-colors last:border-0 hover:bg-muted/50"
+      className="flex items-center gap-2 border-b border-border/60 px-2.5 py-2 text-table transition-colors last:border-0 hover:bg-muted/50"
     >
       <span className="w-5 shrink-0 cursor-grab text-center text-muted-foreground select-none" aria-hidden title="Drag to reorder">
         ⠿
       </span>
       <span className="min-w-0 flex-1 truncate">
         <span className="truncate font-medium">{property.label}</span>{" "}
-        <span className="truncate font-mono text-xs text-muted-foreground">{property.name}</span>
+        <span className="truncate font-mono text-metadata text-muted-foreground">{property.name}</span>
       </span>
       <div className="flex shrink-0 items-center gap-0.5">
         <Button

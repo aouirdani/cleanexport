@@ -67,12 +67,12 @@ export function RunsTable({ initialRuns, exportId }: { initialRuns: RunRow[]; ex
 
   if (runs.length === 0) {
     return (
-      <div className="flex flex-col items-center rounded-xl border border-border bg-card px-4 py-16 text-center shadow-sm">
-        <div aria-hidden className="mb-5 grid size-12 place-items-center rounded-xl border border-border bg-muted">
+      <div className="flex flex-col items-center rounded-xl border border-border bg-card px-6 py-16 text-center shadow-sm">
+        <div aria-hidden className="mb-6 grid size-12 place-items-center rounded-xl border border-border bg-muted">
           <History className="size-5 text-muted-foreground" strokeWidth={1.75} />
         </div>
-        <h2 className="text-lg font-semibold tracking-tight">No runs yet</h2>
-        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+        <h2 className="text-section-title font-semibold tracking-tight">No runs yet</h2>
+        <p className="mt-2 max-w-sm text-copy text-muted-foreground">
           Runs you trigger manually, or that fire on a schedule, will show up here with their status and a
           download link.
         </p>
@@ -83,15 +83,15 @@ export function RunsTable({ initialRuns, exportId }: { initialRuns: RunRow[]; ex
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[720px] text-left">
           <thead>
-            <tr className="border-b border-border bg-muted/40 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-              <th className="py-3 pr-4 pl-5 font-medium">Export</th>
+            <tr className="border-b border-border bg-muted/40 text-metadata font-medium tracking-wider text-muted-foreground uppercase">
+              <th className="py-3 pr-4 pl-6 font-medium">Export</th>
               <th className="py-3 pr-4 font-medium">Status</th>
               <th className="py-3 pr-4 font-medium">Started</th>
               <th className="py-3 pr-4 font-medium">Rows</th>
               <th className="py-3 pr-4 font-medium">Trigger</th>
-              <th className="py-3 pr-5 font-medium text-right">File</th>
+              <th className="py-3 pr-6 font-medium text-right">File</th>
             </tr>
           </thead>
           <tbody>
@@ -109,20 +109,20 @@ function RunRowView({ run }: { run: RunRow }) {
   return (
     <>
       <tr className="border-b border-border/60 align-top transition-colors last:border-0 hover:bg-muted/40">
-        <td className="py-3 pr-4 pl-5 text-sm font-medium">{run.exportName}</td>
-        <td className="py-3 pr-4">
+        <td className="py-4 pr-4 pl-6 text-table font-medium">{run.exportName}</td>
+        <td className="py-4 pr-4">
           <RunStatusBadge status={run.status} stale={run.stale} />
         </td>
-        <td className="py-3 pr-4 font-mono text-sm tabular-nums whitespace-nowrap text-muted-foreground">
+        <td className="py-4 pr-4 font-mono text-status tabular-nums whitespace-nowrap text-muted-foreground">
           {formatDateTime(run.startedAt ?? run.createdAt)}
         </td>
-        <td className="py-3 pr-4 font-mono text-sm tabular-nums whitespace-nowrap text-muted-foreground">
+        <td className="py-4 pr-4 font-mono text-status tabular-nums whitespace-nowrap text-muted-foreground">
           {formatRowCount(run.rowCount)}
         </td>
-        <td className="py-3 pr-4 text-sm whitespace-nowrap text-muted-foreground">
+        <td className="py-4 pr-4 text-table whitespace-nowrap text-muted-foreground">
           {run.trigger === "SCHEDULE" ? "Schedule" : "Manual"}
         </td>
-        <td className="py-3 pr-5 text-right">
+        <td className="py-4 pr-6 text-right">
           {run.status === "SUCCESS" && (
             <Button
               size="sm"
@@ -145,12 +145,15 @@ function RunRowView({ run }: { run: RunRow }) {
  * a customer debugging a failed Monday export needs the whole thing." No
  * `truncate` class, no line clamp, no client-side slicing - `whitespace-pre-wrap`
  * so embedded newlines still render instead of collapsing to spaces.
+ * The danger-colored left border is what makes a failure draw the eye
+ * before anyone reads the message itself - same --danger/--danger-surface
+ * pair as the FAILED badge above it, not a separate red.
  */
 function RunErrorRow({ message }: { message: string }) {
   return (
     <tr className="border-b border-border/60 last:border-0">
-      <td colSpan={6} className="px-5 pb-3">
-        <p className="rounded-md bg-destructive/5 px-3 py-2 text-xs whitespace-pre-wrap text-destructive">
+      <td colSpan={6} className="px-6 pb-4">
+        <p className="rounded-md border-l-4 border-l-danger bg-danger-surface px-3 py-2 text-table whitespace-pre-wrap text-danger">
           {message}
         </p>
       </td>

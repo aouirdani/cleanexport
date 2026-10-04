@@ -120,7 +120,7 @@ export function ExportRowActions({
           </AlertDialogContent>
         </AlertDialog>
       </div>
-      {error && <p className="max-w-48 text-right text-xs text-destructive">{error}</p>}
+      {error && <p className="max-w-48 text-right text-metadata text-destructive">{error}</p>}
     </div>
   )
 }

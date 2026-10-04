@@ -59,8 +59,8 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-page-title font-semibold tracking-tight">Dashboard</h1>
+          <p className="mt-1 text-status text-muted-foreground">
             {exports.length === 0
               ? "Nothing exported yet."
               : `${exports.length} export${exports.length === 1 ? "" : "s"} configured.`}
@@ -77,90 +77,105 @@ export default async function DashboardPage() {
       {exports.length === 0 ? (
         <EmptyExportsState />
       ) : (
-        <div className="flex flex-col gap-3">
-          {exports.map((exportDef) => {
-            const latest = latestRuns.get(exportDef.id)
-            const schedule = describeSchedule(exportDef.scheduleCron, exportDef.nextRunAt)
-            return (
-              <Card
-                key={exportDef.id}
-                className="flex flex-col gap-3 px-5 py-4 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-                    {exportDef.name}
-                    {!exportDef.isActive && <Badge variant="outline">Paused</Badge>}
-                  </p>
-                  <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-                    <span>{OBJECT_TYPE_LABEL[exportDef.objectType] ?? exportDef.objectType}</span>
-                    <span aria-hidden>·</span>
-                    {schedule === "MANUAL" && <span>Manual only</span>}
-                    {schedule === "SCHEDULED" && (
-                      <span>
-                        {exportDef.isActive ? "Scheduled" : "Schedule paused"} (
-                        <span className="font-mono">{exportDef.scheduleTz}</span>)
-                      </span>
-                    )}
-                    {schedule === "INVALID" && <Badge variant="destructive">Schedule needs attention</Badge>}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {exportDef.recipients.length === 0 ? (
-                      <Badge variant="destructive">No recipients - runs will fail</Badge>
+        /* One bounded work surface, not a floating card per row: with as
+           few as two exports, several separate cards read as a loosely
+           scattered, half-loaded page. A single panel with a definite
+           border and a closing bottom edge reads as a complete, deliberate
+           list of exactly this many exports instead. */
+        <Card className="overflow-hidden shadow-sm">
+          <ul className="divide-y divide-border">
+            {exports.map((exportDef) => {
+              const latest = latestRuns.get(exportDef.id)
+              const schedule = describeSchedule(exportDef.scheduleCron, exportDef.nextRunAt)
+              return (
+                <li
+                  key={exportDef.id}
+                  className="flex flex-col gap-3 px-6 py-6 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 truncate text-table font-medium">
+                      {exportDef.name}
+                      {!exportDef.isActive && <Badge variant="outline">Paused</Badge>}
+                    </p>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-metadata text-muted-foreground">
+                      <span>{OBJECT_TYPE_LABEL[exportDef.objectType] ?? exportDef.objectType}</span>
+                      <span aria-hidden>·</span>
+                      {schedule === "MANUAL" && <span>Manual only</span>}
+                      {schedule === "SCHEDULED" && (
+                        <span>
+                          {exportDef.isActive ? "Scheduled" : "Schedule paused"} (
+                          <span className="font-mono">{exportDef.scheduleTz}</span>)
+                        </span>
+                      )}
+                      {schedule === "INVALID" && <Badge variant="destructive">Schedule needs attention</Badge>}
+                    </p>
+                    <p className="mt-1 truncate text-metadata text-muted-foreground">
+                      {exportDef.recipients.length === 0 ? (
+                        <Badge variant="destructive">No recipients - runs will fail</Badge>
+                      ) : (
+                        <>Sends to {exportDef.recipients.join(", ")}</>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {latest ? (
+                      <div className="flex items-center gap-2 text-status text-muted-foreground">
+                        <RunStatusBadge status={latest.status as RunStatusValue} stale={latest.stale} />
+                        <span className="font-mono tabular-nums">{formatDateTime(latest.finishedAt ?? latest.createdAt)}</span>
+                      </div>
                     ) : (
-                      <>Sends to {exportDef.recipients.join(", ")}</>
+                      /* Absence, not failure: no badge at all, the same quiet
+                         muted text as every other piece of metadata on this
+                         row - never a warning/destructive tint just because
+                         nothing has happened yet. */
+                      <span className="text-status text-muted-foreground">Not run yet</span>
                     )}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {latest ? (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <RunStatusBadge status={latest.status as RunStatusValue} stale={latest.stale} />
-                      <span className="font-mono tabular-nums">{formatDateTime(latest.finishedAt ?? latest.createdAt)}</span>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Never run</span>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    render={<Link href={`/dashboard/runs?exportId=${exportDef.id}`} />}
-                    nativeButton={false}
-                  >
-                    View runs
-                  </Button>
-                  <RunNowButton
-                    exportId={exportDef.id}
-                    latestStatus={latest?.status as RunStatusValue | undefined}
-                    latestStale={latest?.stale}
-                  />
-                  <ExportRowActions exportId={exportDef.id} exportName={exportDef.name} isActive={exportDef.isActive} />
-                </div>
-              </Card>
-            )
-          })}
-        </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      render={<Link href={`/dashboard/runs?exportId=${exportDef.id}`} />}
+                      nativeButton={false}
+                    >
+                      View runs
+                    </Button>
+                    <RunNowButton
+                      exportId={exportDef.id}
+                      latestStatus={latest?.status as RunStatusValue | undefined}
+                      latestStale={latest?.stale}
+                    />
+                    <ExportRowActions exportId={exportDef.id} exportName={exportDef.name} isActive={exportDef.isActive} />
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </Card>
       )}
     </div>
   )
 }
 
 function EmptyExportsState() {
+  /* Keep this heading modest, not hero-sized: an oversized title on a page
+     with nothing in it exaggerates the emptiness instead of reading as
+     deliberate. text-section-title here, never bigger than the page's own
+     h1 above it. */
   return (
-    <Card className="mx-auto flex max-w-xl flex-col items-center px-4 py-16 text-center shadow-sm sm:py-20">
+    <Card className="mx-auto flex max-w-xl flex-col items-center px-6 py-16 text-center shadow-sm">
       <div
         aria-hidden
         className="mb-6 grid size-12 place-items-center rounded-xl border border-border bg-muted"
       >
         <Table2 className="size-5 text-muted-foreground" strokeWidth={1.75} />
       </div>
-      <h2 className="text-3xl font-semibold tracking-tight">No exports yet</h2>
-      <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+      <h2 className="text-section-title font-semibold tracking-tight">No exports yet</h2>
+      <p className="mt-3 text-copy text-muted-foreground">
         An export is a saved definition of <span className="font-medium text-foreground">which properties</span>{" "}
         leave your portal, <span className="font-medium text-foreground">how they&apos;re formatted</span>, and{" "}
         <span className="font-medium text-foreground">how often</span> they run. Create one and it ships on
         schedule without you.
       </p>
-      <div className="mt-7">
+      <div className="mt-8">
         <Button size="lg" render={<Link href="/dashboard/exports/new" />} nativeButton={false}>
           <Plus aria-hidden />
           Create your first export

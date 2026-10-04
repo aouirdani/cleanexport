@@ -83,7 +83,7 @@ export function ExportBuilder() {
       <Stepper current={step} onSelect={(i) => (i < step || canAdvance(step, state) ? setStep(i) : undefined)} />
 
       <Card>
-        <CardContent className="py-5 sm:p-6">
+        <CardContent className="py-6 sm:p-6">
           {step === 0 && (
             <ObjectTypeStep
               name={state.name}
@@ -95,7 +95,7 @@ export function ExportBuilder() {
 
           {step === 1 && objectType && (
             <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-medium">Properties for {OBJECT_TYPE_LABEL[objectType]}</h3>
+              <h3 className="text-section-title font-semibold">Properties for {OBJECT_TYPE_LABEL[objectType]}</h3>
               <PropertyPicker
                 objectType={objectType}
                 selected={state.properties}
@@ -129,9 +129,9 @@ export function ExportBuilder() {
 
       <PreviewPanel state={state} />
 
-      {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+      {saveError && <p className="text-status text-destructive">{saveError}</p>}
 
-      <div className="flex items-center justify-between border-t border-border pt-5">
+      <div className="flex items-center justify-between border-t border-border pt-6">
         <Button type="button" variant="outline" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
           Back
         </Button>
@@ -151,7 +151,7 @@ export function ExportBuilder() {
 
 function Stepper({ current, onSelect }: { current: number; onSelect: (index: number) => void }) {
   return (
-    <ol className="flex flex-wrap items-center gap-1.5 text-[13px]">
+    <ol className="flex flex-wrap items-center gap-1.5 text-status">
       {STEPS.map((label, index) => (
         <li key={label} className="flex items-center gap-1.5">
           <button
@@ -169,7 +169,7 @@ function Stepper({ current, onSelect }: { current: number; onSelect: (index: num
           >
             <span
               className={cn(
-                "grid size-5 shrink-0 place-items-center rounded-full text-[11px] tabular-nums",
+                "grid size-5 shrink-0 place-items-center rounded-full text-metadata tabular-nums",
                 index === current
                   ? "bg-primary-foreground/20"
                   : index < current

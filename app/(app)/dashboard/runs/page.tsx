@@ -58,14 +58,14 @@ export default async function RunsPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Run history</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-page-title font-semibold tracking-tight">Run history</h1>
+        <p className="mt-1 text-status text-muted-foreground">
           The last {runs.length === 30 ? 30 : runs.length} runs.
         </p>
       </div>
 
       {exportId && (
-        <div className="flex items-center gap-1.5 self-start rounded-full border border-border py-1 pr-1 pl-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 self-start rounded-full border border-border py-1 pr-1 pl-3 text-metadata text-muted-foreground">
           <span>
             Filtered to <span className="text-foreground">{filteredExport?.name ?? "an export"}</span>
           </span>

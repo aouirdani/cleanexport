@@ -75,7 +75,7 @@ export function RunNowButton({
           when it resets - not a generic error." lib/plan.ts's PLAN_LIMIT_REACHED
           message already says exactly that; this just surfaces it verbatim
           rather than replacing it with a generic "something went wrong". */}
-      {error && <p className="max-w-48 text-right text-xs text-destructive">{error}</p>}
+      {error && <p className="max-w-48 text-right text-metadata text-destructive">{error}</p>}
     </div>
   );
 }

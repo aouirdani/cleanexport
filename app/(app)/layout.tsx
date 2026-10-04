@@ -41,7 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-6">
             <Image src="/logo.png" alt="CleanExport" width={67} height={24} priority />
-            <nav className="flex items-center gap-1 text-[13px]">
+            <nav className="flex items-center gap-1 text-status">
               <Link
                 href="/dashboard"
                 className="rounded-md px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -62,22 +62,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 href={portalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden text-xs text-muted-foreground hover:text-foreground hover:underline sm:inline"
+                className="hidden text-metadata text-muted-foreground hover:text-foreground hover:underline sm:inline"
               >
                 {portalLabel}
               </a>
             ) : (
-              <span className="hidden text-xs text-muted-foreground sm:inline">{portalLabel}</span>
+              <span className="hidden text-metadata text-muted-foreground sm:inline">{portalLabel}</span>
             )}
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-metadata font-medium ${
                 isDisconnected
                   ? "border-destructive/30 bg-destructive/10 text-destructive"
                   : "border-border text-muted-foreground"
               }`}
             >
               <span
-                className={`size-1.5 rounded-full ${isDisconnected ? "bg-destructive" : "bg-emerald-500"}`}
+                className={`size-1.5 rounded-full ${isDisconnected ? "bg-destructive" : "bg-success"}`}
                 aria-hidden
               />
               {isDisconnected ? "Disconnected" : "Connected"}

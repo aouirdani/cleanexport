@@ -183,7 +183,7 @@ export function BillingBanner({ subscription }: BillingBannerProps) {
             type="button"
             onClick={() => subscribe("yearly")}
             disabled={disabled}
-            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50"
+            className="text-metadata text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50"
           >
             {pending === "yearly" ? "Redirecting…" : "or pay yearly and save two months"}
           </button>
@@ -235,11 +235,11 @@ export function BillingBanner({ subscription }: BillingBannerProps) {
             type="button"
             onClick={openPortal}
             disabled={disabled}
-            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50"
+            className="text-metadata text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50"
           >
             {pending === "portal" ? "Redirecting…" : "Manage billing"}
           </button>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-metadata text-destructive">{error}</p>}
         </div>
       </div>
     );
@@ -247,19 +247,18 @@ export function BillingBanner({ subscription }: BillingBannerProps) {
 
   if (!content) return null;
 
-  const tone =
-    content.tone === "warning"
-      ? "border-amber-200 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10"
-      : "border-border bg-muted/40";
-  const textTone = content.tone === "warning" ? "text-amber-900 dark:text-amber-200" : "text-foreground";
+  /* --warning carries its own light/dark mapping, so this no longer needs
+     a parallel set of dark: amber-* overrides - the token does that job. */
+  const tone = content.tone === "warning" ? "border-warning/30 bg-warning/10" : "border-border bg-muted/40";
+  const textTone = content.tone === "warning" ? "text-warning" : "text-foreground";
 
   return (
     <div className={`border-b px-4 py-2.5 sm:px-6 ${tone}`}>
       <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
-        <p className={`text-[13px] ${textTone}`}>{content.message}</p>
+        <p className={`text-status ${textTone}`}>{content.message}</p>
         <div className="flex flex-col items-start gap-1 sm:items-end">
           {content.action}
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-metadata text-destructive">{error}</p>}
         </div>
       </div>
     </div>

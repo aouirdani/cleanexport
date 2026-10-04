@@ -28,26 +28,38 @@ const VARIANT: Record<RunStatusValue, "success" | "destructive" | "secondary" | 
 }
 
 /**
- * Status gets its own palette, not a shade of the one accent color: QUEUED
- * and CANCELLED are deliberately neutral (nothing to act on), RUNNING is
- * amber (in progress, not yet a verdict - the same amber already used for
- * billing/reconnect warnings elsewhere in this shell), SUCCESS is green,
- * FAILED is red and must be legible from across the room. These override
- * the base `variant` colors via `cn` (clsx + tailwind-merge, so the later
- * classes win regardless of the variant's own bg/border/text) rather than
- * relying on the design system's "secondary" variant reading as amber,
- * which it does not - "secondary" and "outline" look the same as every
- * other neutral pill on this screen, which was exactly the complaint.
- * FAILED reuses the --destructive token (border/bg/text-destructive) rather
- * than a separate red, so it matches every other destructive affordance in
- * the app (delete button, error text, "Stalled" badge below) instead of
- * introducing a second, slightly different red.
+ * Status gets its own palette, not a shade of the one accent color - and
+ * now each status has its own pair of a text color AND a quiet surface
+ * (--success/--success-surface, --danger/--danger-surface, --warning/
+ * --warning-surface, --info/--info-surface), not one hue reused at
+ * different opacities over --muted. Five statuses, four pairs:
+ *   SUCCESS -> success (green)
+ *   FAILED  -> danger (red) - "a failed run must be identifiable from
+ *              across the room without reading it"
+ *   RUNNING -> warning (amber, in progress, not yet a verdict)
+ *   QUEUED  -> info (blue, something pending - a real color, not grey,
+ *              since "nothing is wrong" still deserves its own signal)
+ *   CANCELLED -> genuinely neutral (border/muted/muted-foreground) - the
+ *              one truly inert, no-valence end state, so it's the one
+ *              status that does NOT get one of the four new hues.
+ * --danger reuses --destructive's own red rather than a second one (see
+ * globals.css) so this badge and every other destructive affordance in
+ * the app share one hue. These override the base `variant` colors via
+ * `cn` (clsx + tailwind-merge, so the later classes win regardless of the
+ * variant's own bg/border/text) rather than relying on the design
+ * system's "secondary"/"outline" variants reading as these colors, which
+ * they do not. A SUCCESS badge never depends on anything else about the
+ * run (row count included) - "Succeeded · 0 rows" is still SUCCESS green;
+ * it's the dashboard's own "Not run yet" text (plain, no badge at all)
+ * that carries absence, never this component degrading a real status to
+ * look neutral. Word label + colored dot both stay on every badge - color
+ * is never the only signal.
  */
 const STATUS_CLASSNAME: Record<RunStatusValue, string> = {
-  QUEUED: "border-border bg-muted text-muted-foreground",
-  RUNNING: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
-  SUCCESS: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
-  FAILED: "border-destructive/30 bg-destructive/10 text-destructive",
+  QUEUED: "border-info/30 bg-info-surface text-info",
+  RUNNING: "border-warning/30 bg-warning-surface text-warning",
+  SUCCESS: "border-success/30 bg-success-surface text-success",
+  FAILED: "border-danger/30 bg-danger-surface text-danger",
   CANCELLED: "border-border bg-muted text-muted-foreground",
 }
 
@@ -56,10 +68,10 @@ const STATUS_CLASSNAME: Record<RunStatusValue, string> = {
  *  status icon set (Clock/RefreshCw/CircleCheck/... was decoration once the
  *  badge's color and label already say the same thing twice). */
 const DOT: Record<RunStatusValue, string> = {
-  QUEUED: "bg-muted-foreground/50",
-  RUNNING: "bg-amber-500",
-  SUCCESS: "bg-emerald-500",
-  FAILED: "bg-destructive",
+  QUEUED: "bg-info",
+  RUNNING: "bg-warning",
+  SUCCESS: "bg-success",
+  FAILED: "bg-danger",
   CANCELLED: "bg-muted-foreground/50",
 }
 
@@ -73,16 +85,19 @@ const DOT: Record<RunStatusValue, string> = {
  */
 export function RunStatusBadge({ status, stale = false }: { status: RunStatusValue; stale?: boolean }) {
   if (stale && (status === "QUEUED" || status === "RUNNING")) {
+    // A stalled run is heading for FAILED (inngest/staleRuns.ts marks it so
+    // on its next pass) - it gets the same danger pair as FAILED itself,
+    // not the generic destructive variant, so the two read as one family.
     return (
-      <Badge variant="destructive">
-        <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
+      <Badge variant="outline" className="border-danger/30 bg-danger-surface text-danger text-status font-medium">
+        <span aria-hidden className="size-1.5 rounded-full bg-danger" />
         Stalled
       </Badge>
     )
   }
 
   return (
-    <Badge variant={VARIANT[status]} className={cn(STATUS_CLASSNAME[status], "font-medium")}>
+    <Badge variant={VARIANT[status]} className={cn(STATUS_CLASSNAME[status], "text-status font-medium")}>
       <span aria-hidden className={cn("size-1.5 rounded-full", DOT[status], status === "RUNNING" && "animate-pulse")} />
       {LABEL[status]}
     </Badge>
