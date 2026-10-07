@@ -14,7 +14,7 @@ cannot return the exact data of a dashboard report, and this extends to custom r
 
 ### Consequence
 
-CleanExport is a **query builder plus export engine**, not a report fetcher. The user
+CleanExporter is a **query builder plus export engine**, not a report fetcher. The user
 rebuilds their export inside our UI once. We then query the CRM object APIs directly.
 
 This is not a weakness. It is why the problem still exists: nobody can trivially proxy

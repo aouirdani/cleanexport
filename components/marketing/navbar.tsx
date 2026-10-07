@@ -40,7 +40,7 @@ export function Navbar({ signedIn }: { signedIn: boolean }) {
   return (
     <header className="site-header" data-scrolled={scrolled}>
       <div className="container navbar">
-        <Link href="/" className="brand-link" aria-label="CleanExport home" onClick={() => setMenuOpen(false)}>
+        <Link href="/" className="brand-link" aria-label="CleanExporter home" onClick={() => setMenuOpen(false)}>
           <Wordmark />
         </Link>
         <nav className="desktop-navigation" aria-label="Main navigation">

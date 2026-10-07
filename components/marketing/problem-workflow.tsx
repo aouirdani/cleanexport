@@ -74,7 +74,7 @@ export function ProblemSection() {
         </div>
         <div className="problem-banner">
           The HubSpot Reporting add-on that fixes some of this: <strong>$200/month</strong> vs.{" "}
-          <strong className="problem-banner-accent">$29/month</strong> with CleanExport
+          <strong className="problem-banner-accent">$29/month</strong> with CleanExporter
         </div>
       </div>
     </section>
@@ -95,7 +95,7 @@ const STEPS: { title: string; desc: string; icon: IconName }[] = [
   {
     icon: "calendar",
     title: "Set your schedule",
-    desc: "Daily, weekly, or monthly - or run it manually whenever you want. CleanExport emails you the file automatically.",
+    desc: "Daily, weekly, or monthly - or run it manually whenever you want. CleanExporter emails you the file automatically.",
   },
   {
     icon: "mail",

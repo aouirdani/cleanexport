@@ -25,7 +25,7 @@ const FEATURES: { icon: IconName; title: string; desc: string }[] = [
   { icon: "calendar", title: "Real Excel dates", desc: "Date fields are real date values - sortable, filterable, usable in formulas." },
   { icon: "users", title: "Owner names, not IDs", desc: "Owner columns show a name, not an 8-digit numeric ID you have to decode." },
   { icon: "hash", title: "IDs kept as text", desc: "Record IDs are stored as text so Excel can't silently round them into a different ID." },
-  { icon: "columns", title: "Your column order", desc: "Drag properties into any order. CleanExport never rearranges them behind your back." },
+  { icon: "columns", title: "Your column order", desc: "Drag properties into any order. CleanExporter never rearranges them behind your back." },
   { icon: "clock", title: "Scheduled delivery", desc: "Daily, weekly, or monthly. Your file arrives without you lifting a finger." },
   { icon: "filter", title: "Filters & associated columns", desc: "Export only the records you need, and pull in an associated company or contact's columns too." },
 ]
@@ -39,7 +39,7 @@ export function FeatureGrid() {
             <span className="eyebrow">What you get</span>
             <h2 id="features-heading">Everything your export should be</h2>
           </div>
-          <p>CleanExport does one thing and does it right: a file that is correct.</p>
+          <p>CleanExporter does one thing and does it right: a file that is correct.</p>
         </div>
         <div className="feature-grid">
           {FEATURES.map((feature) => (
@@ -83,7 +83,7 @@ export function UseCases() {
       <div className="container">
         <div className="section-heading centered">
           <span className="eyebrow">Who it&apos;s for</span>
-          <h2 id="who-heading">Who uses CleanExport</h2>
+          <h2 id="who-heading">Who uses CleanExporter</h2>
           <p>Different teams. The same Monday morning problem.</p>
         </div>
         <div className="use-case-grid">

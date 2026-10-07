@@ -1,4 +1,4 @@
-# CleanExport — plan d'acquisition
+# CleanExporter — plan d'acquisition
 
 Document autonome. Tout ce dont tu as besoin est ici : où trouver les gens,
 quoi leur écrire, quoi préparer, et quand arrêter.
@@ -108,7 +108,7 @@ Exporte le même contact deux fois :
 **Par HubSpot** : Contacts → sélectionne → Exporter → CSV. Choisis un
 contact dont un champ texte long contient des sauts de ligne.
 
-**Par CleanExport** : le même contact, les mêmes propriétés.
+**Par CleanExporter** : le même contact, les mêmes propriétés.
 
 Ouvre les deux dans Excel, côte à côte, capture d'écran. À gauche le
 contact éclaté sur plusieurs lignes ; à droite une seule ligne propre.
@@ -119,7 +119,7 @@ contact éclaté sur plusieurs lignes ; à droite une seule ligne propre.
 
 Stripe, mode **réel** → Paiements → Liens de paiement → Créer.
 
-- Produit : CleanExport Solo
+- Produit : CleanExporter Solo
 - Applique un coupon **50 % à vie** (crée-le dans Coupons : 50 %, durée
   « toujours »)
 - Prix affiché : **14,50 $/mois**
@@ -168,7 +168,7 @@ Excel — you wrote: "{sa phrase exacte}".
 
 I hit the same wall and got tired of waiting, so I built it.
 
-CleanExport lets you rebuild the export once, then the .xlsx lands in
+CleanExporter lets you rebuild the export once, then the .xlsx lands in
 your inbox on whatever schedule you pick.
 
 I've attached a file it generated from a real portal this morning, next
@@ -189,7 +189,7 @@ Worth a look?
 Aymane
 ```
 
-**Pièces jointes** : le `.xlsx` de CleanExport, et la capture comparative.
+**Pièces jointes** : le `.xlsx` de CleanExporter, et la capture comparative.
 
 ## Ce qui fait échouer un message
 

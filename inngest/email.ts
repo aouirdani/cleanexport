@@ -36,7 +36,7 @@ function client(): Resend {
 }
 
 function fromAddress(): string {
-  return process.env.EMAIL_FROM ?? 'CleanExport <exports@cleanexport.app>';
+  return process.env.EMAIL_FROM ?? 'CleanExporter <exports@cleanexport.app>';
 }
 
 function appUrl(): string {
@@ -128,7 +128,7 @@ function htmlLayout(title: string, bodyHtml: string): string {
   return `<!doctype html><html><body style="font-family:sans-serif;color:#1a1a1a;line-height:1.5">
 <h2 style="margin:0 0 16px">${escapeHtml(title)}</h2>
 ${bodyHtml}
-<p style="margin-top:32px;color:#666;font-size:12px">CleanExport</p>
+<p style="margin-top:32px;color:#666;font-size:12px">CleanExporter</p>
 </body></html>`;
 }
 
@@ -338,7 +338,7 @@ export interface ReconnectEmailInput {
 export async function sendReconnectEmail(input: ReconnectEmailInput): Promise<void> {
   if (input.recipients.length === 0) return;
 
-  const subject = 'Your CleanExport schedules have stopped';
+  const subject = 'Your CleanExporter schedules have stopped';
   const stoppedHtml = 'Your scheduled exports have stopped running.';
   const whyHtml = 'This is because your HubSpot connection was disconnected (access was revoked).';
   const reconnectHtml = `<a href="${input.reconnectUrl}">Reconnect HubSpot</a> to resume them.`;

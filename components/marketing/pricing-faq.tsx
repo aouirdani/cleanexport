@@ -28,7 +28,7 @@ const COMPARE_ROWS = [
   { name: "HubSpot Reporting add-on", price: "$200/mo", note: "Still no scheduled export" },
   { name: "Professional → Enterprise upgrade", price: "$890 → $3,600/mo", note: "Way overkill just for exports" },
   { name: "A full BI connector", price: "Priced for a data team", note: "Needs someone to run it" },
-  { name: "CleanExport", price: "$29/mo", note: "Does exactly what you need", highlight: true },
+  { name: "CleanExporter", price: "$29/mo", note: "Does exactly what you need", highlight: true },
 ] as const
 
 const PLAN_INCLUDES = [
@@ -46,7 +46,7 @@ function PricingCard({ signedIn }: { signedIn: boolean }) {
   return (
     <div className="pricing-card">
       <div className="pricing-card-title">
-        <h3>CleanExport</h3>
+        <h3>CleanExporter</h3>
         <span>14-day free trial</span>
       </div>
       <p className="pricing-card-description">Everything you need to export HubSpot data correctly.</p>

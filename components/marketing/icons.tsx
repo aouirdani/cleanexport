@@ -2,11 +2,11 @@
  * Ported as-is from
  * ~/dev/design-ref/build-cleanexporter-landing-page/src/components/marketing/icons.tsx.
  * Self-contained inline SVGs with no dependency on lucide-react, so the
- * marketing page's icon set matches the reference pixel-for-pixel. Only
- * change: Wordmark's label text ("CleanExporter" -> "CleanExport", our
- * actual product name) and LogoMark's accent colors swapped to this app's
- * hero #FAFAF9/accent #F27550 tokens are unchanged (already generic hex,
- * not the dashboard's indigo).
+ * marketing page's icon set matches the reference pixel-for-pixel. No text
+ * change needed: our product name is CleanExporter too, so Wordmark's label
+ * matches the reference verbatim. LogoMark's accent colors (hero
+ * #FAFAF9/accent #F27550) are also unchanged - already generic hex, not the
+ * dashboard's indigo.
  */
 import type { CSSProperties, ReactNode } from "react"
 
@@ -77,7 +77,7 @@ export function LogoMark({ size = 32, className }: { size?: number; className?: 
 }
 
 export function Wordmark({ compact = false }: { compact?: boolean }) {
-  return <span className={`wordmark${compact ? " wordmark--compact" : ""}`}><LogoMark size={compact ? 24 : 32} /><span>CleanExport</span></span>
+  return <span className={`wordmark${compact ? " wordmark--compact" : ""}`}><LogoMark size={compact ? 24 : 32} /><span>CleanExporter</span></span>
 }
 
 export function HubSpotMark({ size = 23 }: { size?: number }) {

@@ -40,7 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm supports-backdrop-filter:bg-background/80">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-6">
-            <Image src="/logo.png" alt="CleanExport" width={67} height={24} priority />
+            <Image src="/logo.png" alt="CleanExporter" width={67} height={24} priority />
             <nav className="flex items-center gap-1 text-status">
               <Link
                 href="/dashboard"

@@ -5,7 +5,7 @@
  * see app/api/auth/hubspot/start.
  */
 export const siteConfig = {
-  name: "CleanExport",
+  name: "CleanExporter",
   signupUrl: "/api/auth/hubspot/start",
   loginUrl: "/login",
   contactEmail: "aymane.ouirdani94@outlook.fr",

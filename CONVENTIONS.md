@@ -6,7 +6,7 @@ Every rule you add here dilutes the others. Resist growing this file.
 Detail belongs in the spec you pass with --read for that specific task.
 -->
 
-Project: CleanExport. Scheduled Excel exports of HubSpot CRM data.
+Project: CleanExporter. Scheduled Excel exports of HubSpot CRM data.
 Stack: Next.js 16 App Router, TypeScript strict, Prisma, PostgreSQL, ExcelJS, Inngest.
 
 ## The eleven rules

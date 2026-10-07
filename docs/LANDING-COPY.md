@@ -1,4 +1,4 @@
-# CleanExport — landing page copy
+# CleanExporter — landing page copy
 
 Written to be pasted into a one-page site. No feature grid, no testimonials you don't
 have, no fake logos. One problem, one proof, one price.
@@ -13,7 +13,7 @@ HubSpot won't export a dashboard report to Excel. Its CSV export splits one cont
 four rows when a Notes field contains line breaks. Column order isn't preserved. And you
 can't schedule any of it.
 
-**CleanExport does one thing: your report, as a clean `.xlsx`, on a schedule.**
+**CleanExporter does one thing: your report, as a clean `.xlsx`, on a schedule.**
 
 [ Connect HubSpot — 14 days free ]
 
@@ -29,7 +29,7 @@ Side by side, two images:
 One contact. Four rows. The Notes field broke the record apart, and the accents came out
 mangled: Klaus Müller became Klaus MÃ¼ller.
 
-**Right — CleanExport**
+**Right — CleanExporter**
 The same contact. One row. Line breaks preserved inside the cell, accents intact.
 
 > Caption: This is the whole product. A file that is correct.
@@ -47,7 +47,7 @@ Meanwhile the workarounds cost real money:
 | HubSpot Reporting add-on | **$200/month** |
 | Upgrade Professional → Enterprise | $890 → $3,600/month |
 | A full BI connector | Priced for a data team, not for exports |
-| **CleanExport** | **$29/month** |
+| **CleanExporter** | **$29/month** |
 
 You're already paying for HubSpot. You shouldn't have to pay a fifth of that again to get
 your own data out of it.

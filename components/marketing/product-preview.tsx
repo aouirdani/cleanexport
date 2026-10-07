@@ -8,9 +8,9 @@
  * than invented: the four CRM objects (Deals/Contacts/Companies/Tickets)
  * and the three schedule cadences (daily/weekly/monthly) match our actual
  * how-it-works copy exactly, and "Every Monday · 07:00" already lines up
- * with the hero's "Every Monday" headline. Only the Wordmark import
- * changed (now reads "CleanExport" - see icons.tsx). No time-dependent
- * computation: all state is useState, no Date.now()/setInterval.
+ * with the hero's "Every Monday" headline. The Wordmark import needs no
+ * text change - our product name is CleanExporter too (see icons.tsx). No
+ * time-dependent computation: all state is useState, no Date.now()/setInterval.
  */
 "use client"
 
@@ -114,7 +114,7 @@ export function ProductPreview() {
     document.getElementById(`demo-tab-${next}`)?.focus()
   }
 
-  return <div className="product-preview" aria-label="Interactive CleanExport product demonstration with fictional sample data">
+  return <div className="product-preview" aria-label="Interactive CleanExporter product demonstration with fictional sample data">
     <div className="product-stage">
       <div className="preview-eyebrow"><span className="tiny-dot" /> YOUR NEXT MONDAY, SORTED.</div>
       <div className="product-window">
@@ -157,10 +157,10 @@ export function ProductPreview() {
         <SampleSheet sample={sample} properties={properties} compact />
       </div>
     </div>
-    <div className="product-flow" aria-label="HubSpot to CleanExport to an Excel XLSX file">
+    <div className="product-flow" aria-label="HubSpot to CleanExporter to an Excel XLSX file">
       <span className="flow-node"><span className="hubspot-color"><HubSpotMark size={20} /></span><strong>HubSpot</strong></span>
       <span className="flow-link"><Icon name="arrow-right" size={12} /></span>
-      <span className="flow-node"><LogoMark size={22} /><strong>CleanExport</strong></span>
+      <span className="flow-node"><LogoMark size={22} /><strong>CleanExporter</strong></span>
       <span className="flow-link"><Icon name="arrow-right" size={12} /></span>
       <span className="flow-node"><ExcelMark size={22} /><strong>Excel <span className="flow-extension">.xlsx</span></strong></span>
     </div>

@@ -104,7 +104,7 @@ function CleanSpreadsheet() {
         <div>
           <ExcelMark size={30} />
           <div>
-            <strong>CleanExport XLSX</strong>
+            <strong>CleanExporter XLSX</strong>
             <span>weekly_contacts.xlsx</span>
           </div>
         </div>
@@ -177,7 +177,7 @@ export function DataComparison() {
           <h2 id="data-heading">From HubSpot&apos;s CSV to Excel-ready.</h2>
           <p>
             One contact. HubSpot&apos;s own export breaks it into four rows and mangles the accent in the name.
-            CleanExport keeps it as one row, intact.
+            CleanExporter keeps it as one row, intact.
           </p>
         </div>
         <div className="spreadsheet-comparison">

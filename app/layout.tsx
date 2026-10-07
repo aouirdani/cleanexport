@@ -19,7 +19,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CleanExport — your HubSpot data, in a correct Excel file",
+  title: "CleanExporter — your HubSpot data, in a correct Excel file",
   description:
     "Scheduled, correct Excel exports of your HubSpot CRM data. No broken CSVs, no manual cleanup, on a schedule.",
 };

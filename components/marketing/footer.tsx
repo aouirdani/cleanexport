@@ -39,7 +39,7 @@ export function Footer() {
       <div className="container">
         <div className="footer-top">
           <div className="footer-brand">
-            <Link href="/" aria-label="CleanExport home">
+            <Link href="/" aria-label="CleanExporter home">
               <Wordmark />
             </Link>
             <p>
@@ -60,7 +60,7 @@ export function Footer() {
           </nav>
         </div>
         <div className="footer-bottom">
-          <span>© {new Date().getFullYear()} CleanExport · Built by Aymane Ouirdani</span>
+          <span>© {new Date().getFullYear()} CleanExporter · Built by Aymane Ouirdani</span>
           <span className="footer-disclaimer">Independent software. Not affiliated with HubSpot.</span>
         </div>
       </div>

@@ -44,7 +44,7 @@ export function Hero({ signedIn }: { signedIn: boolean }) {
             any of it.
           </p>
           <p className="hero-description hero-description--strong">
-            CleanExport does one thing: your report, as a clean <code>.xlsx</code>, on a schedule.
+            CleanExporter does one thing: your report, as a clean <code>.xlsx</code>, on a schedule.
           </p>
           <div className="hero-actions">
             <ConnectCta signedIn={signedIn} label="Connect HubSpot" className="hero-cta" />
@@ -80,7 +80,7 @@ const REASSURANCES: { icon: IconName; label: string; sub: string }[] = [
 
 export function TrustStrip() {
   return (
-    <section className="trust-strip" aria-label="Why teams trust CleanExport">
+    <section className="trust-strip" aria-label="Why teams trust CleanExporter">
       <div className="container trust-content">
         <ul>
           {REASSURANCES.map((item) => (

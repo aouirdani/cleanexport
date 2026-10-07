@@ -4,7 +4,7 @@ Place this file at the repository root. Every coding agent session must load it.
 
 ## Project
 
-CleanExport — scheduled, correct Excel exports of HubSpot CRM data. Next.js 15 (App
+CleanExporter — scheduled, correct Excel exports of HubSpot CRM data. Next.js 15 (App
 Router) + TypeScript + Prisma + PostgreSQL + Inngest + ExcelJS + Stripe + Resend.
 
 ## Rules
