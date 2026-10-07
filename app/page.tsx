@@ -42,7 +42,7 @@ export default async function LandingPage() {
   const signedIn = session !== null
 
   return (
-    <div className="marketing-page flex flex-1 flex-col">
+    <div id="top" className="marketing-page flex flex-1 flex-col">
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>

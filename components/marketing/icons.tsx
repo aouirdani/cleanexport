@@ -66,13 +66,32 @@ export function Icon({ name, size = 20, className, style }: {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className} style={style}>{paths[name]}</svg>
 }
 
-export function LogoMark({ size = 32, className }: { size?: number; className?: string }) {
+/**
+ * The mark's raw path data - the single source of truth, also consumed by
+ * app/icon.tsx (the browser-tab favicon) so the two can never drift apart.
+ * That favicon route can't import a React component (it returns a raw SVG
+ * string, not JSX), so this is exported as plain data rather than leaving
+ * the paths only inside LogoMark's JSX below.
+ */
+export const LOGO_MARK_PATHS = {
+  document: "M9 8h8l4 4v12H9V8Z",
+  fold: "M17 8v5h5",
+  arrow: "M13 16h12m-4-4 4 4-4 4",
+  /** The 1.5px detail stroke - legible at the header's 24-32px. Dropped in
+   *  app/icon.tsx: at actual favicon display size (browsers commonly render
+   *  tab icons at 16px) a 1.5-unit stroke in grey #747b77 on a near-white
+   *  fill is below what anti-aliasing preserves - verified by rendering the
+   *  full mark at 16px next to the same mark with this path removed. */
+  detail: "M12 21h4",
+} as const
+
+export function LogoMark({ size = 32, className, detail = true }: { size?: number; className?: string; detail?: boolean }) {
   return <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" className={className}>
     <rect x="1" y="1" width="30" height="30" rx="7" fill="currentColor" />
-    <path d="M9 8h8l4 4v12H9V8Z" fill="#FAFAF9" />
-    <path d="M17 8v5h5" fill="#d5d6d2" />
-    <path d="M13 16h12m-4-4 4 4-4 4" stroke="#F27550" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M12 21h4" stroke="#747b77" strokeWidth="1.5" strokeLinecap="round" />
+    <path d={LOGO_MARK_PATHS.document} fill="#FAFAF9" />
+    <path d={LOGO_MARK_PATHS.fold} fill="#d5d6d2" />
+    <path d={LOGO_MARK_PATHS.arrow} stroke="#F27550" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    {detail && <path d={LOGO_MARK_PATHS.detail} stroke="#747b77" strokeWidth="1.5" strokeLinecap="round" />}
   </svg>
 }
 

@@ -5,6 +5,15 @@
  * becomes signedIn-aware (a signed-in visitor sees a dashboard link, not
  * a second OAuth CTA) via ConnectCta, and nav links point at our own
  * section ids.
+ *
+ * The brand link is a plain `<a href="#top">`, not next/link's `<Link>`:
+ * we're always already on this page when it's clicked (Navbar only
+ * renders here), so a route transition was never the right tool - it just
+ * made the logo trigger a full page reload instead of scrolling. #top
+ * (the id on app/page.tsx's root div) scrolls there natively, inheriting
+ * `scroll-behavior: smooth` and `scroll-padding-top: 96px` from
+ * `html:has(.marketing-page)` in landing.css - no JS scroll handler
+ * needed, and nothing here computes from the current time.
  */
 "use client"
 
@@ -40,9 +49,9 @@ export function Navbar({ signedIn }: { signedIn: boolean }) {
   return (
     <header className="site-header" data-scrolled={scrolled}>
       <div className="container navbar">
-        <Link href="/" className="brand-link" aria-label="CleanExporter home" onClick={() => setMenuOpen(false)}>
+        <a href="#top" className="brand-link" aria-label="CleanExporter home" onClick={() => setMenuOpen(false)}>
           <Wordmark />
-        </Link>
+        </a>
         <nav className="desktop-navigation" aria-label="Main navigation">
           {navigation.map((item) => (
             <a key={item.href} href={item.href}>

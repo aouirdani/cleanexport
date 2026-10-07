@@ -12,8 +12,13 @@
  *     the original page) to justify adding them now.
  * Kept: "Independent software. Not affiliated with HubSpot." - true,
  * costs nothing, and matches the reference's own legal-safety reasoning.
+ *
+ * The brand link got the same #top treatment as navbar.tsx's, for the same
+ * reason and for consistency: a visitor who scrolled all the way down to
+ * read the footer and then clicks the logo is reaching for "take me back
+ * up," not "reload the page I'm already on" - the same click should not
+ * behave differently here than it does in the header.
  */
-import Link from "next/link"
 import { Icon, Wordmark } from "./icons"
 import { ConnectCta } from "./connect-cta"
 import { navigation, contactUrl } from "./site-config"
@@ -39,9 +44,9 @@ export function Footer() {
       <div className="container">
         <div className="footer-top">
           <div className="footer-brand">
-            <Link href="/" aria-label="CleanExporter home">
+            <a href="#top" aria-label="CleanExporter home">
               <Wordmark />
-            </Link>
+            </a>
             <p>
               Your HubSpot data,
               <br />
