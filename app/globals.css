@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* Marketing/landing page only. Ported near-verbatim from
+   ~/dev/design-ref/build-cleanexporter-landing-page/src/components/marketing/landing.css,
+   with every rule scoped under .marketing-page so it can't leak into the
+   dashboard's own tokens/classes above (font vars renamed to this app's
+   --font-sans/--font-mono). See components/marketing/landing.css for the
+   full note on what was ported vs. adapted. */
+@import "../components/marketing/landing.css";
 
 @custom-variant dark (&:is(.dark *));
 

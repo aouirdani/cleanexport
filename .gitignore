@@ -37,3 +37,4 @@ lib/generated/
 # tous les fichiers env, quel que soit le suffixe
 .env*
 !.env.example
+.aider*
