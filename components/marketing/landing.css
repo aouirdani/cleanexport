@@ -403,13 +403,17 @@ html:has(.marketing-page) {
   }
   & .product-stage {
     position: relative;
-    padding-bottom: 58px;
+    padding-bottom: 14px;
   }
+  /* Sized to peek out from behind .product-window alone - there's no
+     second floating card below it to clear anymore (see product-preview.tsx's
+     header comment: the reference's floating "export result" card had no
+     counterpart on the real dashboard and isn't ported). */
   & .product-stage::before {
     content: "";
     position: absolute;
     z-index: 0;
-    inset: 44px -12px 75px 15px;
+    inset: 20px -10px -10px 14px;
     background: #eeefe8;
     border: 1px solid #e9ebe2;
     border-radius: 11px;
@@ -455,6 +459,26 @@ html:has(.marketing-page) {
     width: 21px;
     height: 21px;
   }
+  & .app-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  /* Two plain nav items, not a sidebar - app/(app)/layout.tsx's real
+     header has no sidebar at all, just "Dashboard" and "Run history"
+     links next to the wordmark. Spans, not links: this sits inside a
+     mockup of someone else's screen, not real site navigation. */
+  & .app-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 8px;
+    color: #76806f;
+  }
+  & .app-nav span[aria-current] {
+    color: #313a2c;
+    font-weight: 600;
+  }
   & .connection-status {
     display: flex;
     align-items: center;
@@ -468,493 +492,139 @@ html:has(.marketing-page) {
     background: #63946b;
     border-radius: 50%;
   }
-  & .app-body {
-    display: grid;
-    grid-template-columns: 108px minmax(0, 1fr);
-  }
-  & .app-sidebar {
-    position: relative;
-    padding: 17px 9px 57px;
-    background: #fafbf8;
-    border-right: 1px solid #e9ebe5;
-  }
-  & .app-sidebar-label {
-    padding: 0 5px;
-    margin-bottom: 12px;
-    font-size: 7px;
-    color: #6b756c;
-    font-weight: 550;
-    letter-spacing: 0.85px;
-  }
-  & .app-sidebar > span {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 9px 7px;
-    margin-bottom: 3px;
-    border-radius: 4px;
-    font-size: 8.5px;
-    color: #637067;
-  }
-  & .app-sidebar > .app-nav-active {
-    color: #b44a2b;
-    background: #f9ede6;
-    font-weight: 600;
-  }
-  & .sidebar-count {
-    margin-left: auto;
-    font-size: 7px;
-  }
-  & .sidebar-bottom {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    position: absolute;
-    left: 12px;
-    bottom: 17px;
-    font-size: 8px;
-    line-height: 1.6;
-  }
-  & .sidebar-bottom small {
-    display: block;
-    font-size: 6.5px;
-    color: #637067;
-  }
-  & .sample-avatar {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: #e5e9df;
-    color: #58634f;
-    font-size: 7px;
-    font-weight: 600;
-  }
   & .app-main {
-    padding: 14px 17px 12px;
+    padding: 14px 17px 15px;
     min-width: 0;
   }
-  & .app-breadcrumb {
+  & .app-main-heading {
     display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-bottom: 8px;
-    color: #6b736c;
-    font-size: 7.5px;
-    line-height: 10px;
-  }
-  & .app-breadcrumb > span {
-    color: #4f5a51;
-  }
-  & .export-title-row {
-    display: flex;
+    align-items: baseline;
     justify-content: space-between;
-    gap: 6px;
-    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
   }
-  & .export-title-row h2 {
-    font-size: 19px;
+  & .app-main-heading h2 {
+    font-size: 15px;
     font-weight: 600;
-    line-height: 1.2;
-    letter-spacing: -0.6px;
+    letter-spacing: -0.3px;
   }
-  & .scheduled-badge {
-    display: inline-flex;
-    gap: 4px;
-    align-items: center;
-    padding: 4px 6px;
-    border: 1px solid #dfeade;
-    border-radius: 4px;
-    font-size: 6.8px;
-    font-weight: 550;
-    color: #48764c;
-    background: #f4f9f1;
-  }
-  & .scheduled-badge > span {
-    width: 3px;
-    height: 3px;
-    border-radius: 50%;
-    background: #548859;
-  }
-  & .export-subtitle {
-    font-size: 8.5px;
-    line-height: 1.5;
-    color: #667067;
-    margin-top: 4px !important;
-  }
-  & .app-tabs {
-    display: flex;
-    gap: 20px;
-    height: 30px;
-    margin: 12px 0 12px;
-    border-bottom: 1px solid #e7eae3;
-  }
-  & .app-tabs button {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0 0 9px;
-    border: none;
-    border-bottom: 2px solid transparent;
-    background: none;
+  & .app-main-heading p {
+    font-size: 8px;
     color: #68746b;
-    font-size: 8px;
-    font-weight: 530;
   }
-  & .app-tabs button[aria-selected="true"] {
-    border-bottom-color: #d46843;
-    color: #b34a2c;
-  }
-  & .app-tabs button > span {
-    padding: 1px 3px;
-    border-radius: 3px;
-    background: #f1f3ed;
-    color: #68736a;
-    font-size: 6px;
-  }
-  & .demo-fields {
-    display: grid;
-    grid-template-columns: 0.78fr 1.22fr;
-    gap: 10px;
-  }
-  & .demo-fields > div {
-    min-width: 0;
-  }
-  & .demo-fields label,
-  & .demo-label {
-    display: block;
-    color: #626e64;
-    font-size: 7px;
-    font-weight: 570;
-    letter-spacing: 0.7px;
-    line-height: 10px;
-    margin-bottom: 5px;
-  }
-  & .demo-select {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    height: 29px;
-    padding-left: 8px;
-    background: #fff;
-    border: 1px solid #e1e5dc;
-    border-radius: 4px;
-    color: #566451;
-  }
-  & .demo-select select {
-    width: 100%;
-    min-width: 0;
-    height: 100%;
-    padding: 0 23px 0 0;
-    appearance: none;
-    border: none;
-    background: transparent;
-    font-size: 8px;
-    color: #404e43;
-    cursor: pointer;
-    text-overflow: ellipsis;
-  }
-  & .demo-select select:focus-visible {
-    outline-offset: 0;
-  }
-  & .demo-select > svg:last-child {
-    position: absolute;
-    right: 7px;
-    pointer-events: none;
-  }
-  & .demo-select option {
-    font-size: 12px;
-  }
-  & .demo-properties {
-    min-width: 0;
-    margin: 12px 0 0;
-    padding: 0;
-    border: 0;
-  }
-  & .demo-properties legend {
-    width: 100%;
-    padding: 0;
-    color: #626e64;
-    font-size: 7px;
-    font-weight: 570;
-    letter-spacing: 0.7px;
-    line-height: 10px;
-  }
-  & .demo-properties legend > span {
-    float: right;
-    letter-spacing: 0;
-    font-size: 7px;
-    font-weight: 400;
-    color: #61705f;
-  }
-  & .demo-properties > div {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px 10px;
-    margin-top: 7px;
-  }
-  & .demo-properties label {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    min-width: 0;
-    height: 22px;
-    font-size: 8.5px;
-    color: #49564b;
-    cursor: pointer;
-  }
-  & .demo-properties label > svg {
-    color: #899285;
-    width: 8px;
-  }
-  & .demo-properties label > span:last-child {
+  /* The real dashboard overview (app/(app)/dashboard/page.tsx): a bordered
+     list of exports, not a table - each row is name, object type +
+     schedule text, recipients, then the latest run's real status badge
+     (components/dashboard/run-status-badge.tsx) and a timestamp. */
+  & .export-list {
+    border: 1px solid #e3e6dd;
+    border-radius: 6px;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  & .demo-properties input {
-    position: absolute;
-    left: 12px;
-    width: 13px;
-    height: 13px;
-    margin: 0;
-    opacity: 0;
-  }
-  & .demo-checkbox {
-    display: inline-grid;
-    place-items: center;
-    width: 12px;
-    height: 12px;
-    flex-shrink: 0;
-    border: 1px solid #b5c1b1;
-    border-radius: 3px;
     background: #fff;
-    color: #fff;
-    transition: background 0.15s;
   }
-  & .demo-checkbox svg {
-    opacity: 0;
-  }
-  & .demo-properties input:checked + .demo-checkbox {
-    background: #ce6946;
-    border-color: #ce6946;
-  }
-  & .demo-properties input:checked + .demo-checkbox svg {
-    opacity: 1;
-  }
-  & .demo-properties input:focus-visible + .demo-checkbox {
-    outline: 2px solid var(--accent-strong);
-    outline-offset: 3px;
-  }
-  & .demo-filter {
-    margin-top: 12px;
-  }
-  & .demo-filter > div {
+  & .export-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    height: 25px;
-    padding: 0 8px;
-    border: 1px solid #e8ebe3;
-    border-radius: 4px;
-    background: #fafbf8;
-    font-size: 7.5px;
-    color: #4e5d50;
-  }
-  & .demo-filter svg {
-    color: #717f70;
-  }
-  & .filter-operator {
-    padding: 1px 5px;
-    border-radius: 3px;
-    background: #eeefe8;
-    color: #67735f;
-  }
-  & .filter-value {
-    color: #a14e31;
-    font-weight: 550;
-  }
-  & .app-main-footer {
-    display: flex;
     justify-content: space-between;
-    align-items: center;
-    gap: 4px;
-    padding-top: 10px;
-    margin-top: 13px;
-    border-top: 1px solid #eceee7;
+    gap: 10px;
+    padding: 9px 11px;
+    border-bottom: 1px solid #edefe8;
   }
-  & .app-main-footer > span {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+  & .export-row:last-child {
+    border-bottom: 0;
+  }
+  & .export-row-name {
+    font-size: 9px;
+    font-weight: 600;
+    color: #2d332e;
+  }
+  & .export-row-meta {
+    margin-top: 2px;
+    font-size: 7px;
+    color: #68746b;
+  }
+  & .export-row-meta > span {
+    margin-inline: 3px;
+  }
+  & .export-row-recipients {
+    margin-top: 2px;
     font-size: 6.8px;
-    color: #62715f;
+    color: #7c8679;
   }
-  & .app-main-footer > button {
+  & .export-row-status {
     display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+  & .run-badge-time {
+    font-size: 6.5px;
+    color: #7c8679;
+    font-family: var(--font-mono), monospace;
+  }
+  /* The exact same five status tokens RunStatusBadge renders with
+     (--success/--warning/--info paired with their *-surface tints, plus
+     the "Stalled"/CANCELLED neutral pair) - reused by var(), not
+     re-approximated in the marketing palette, so a visitor who later
+     signs in sees literally the same colors, not just similar ones. */
+  & .run-badge {
+    display: inline-flex;
     align-items: center;
-    gap: 5px;
-    min-height: 23px;
-    padding: 0 7px;
-    border: 1px solid #e2e6dd;
-    border-radius: 4px;
-    background: #fafbf8;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 99px;
+    border: 1px solid transparent;
     font-size: 7px;
-    color: #4e5d4c;
-  }
-  & .app-main-footer > button:hover {
-    color: #af4d2d;
-    background: #fcf2ec;
-  }
-  & .demo-data-panel {
-    min-height: 185px;
-  }
-  & .demo-preview-info {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin: 14px 0 18px;
-  }
-  & .demo-preview-info strong {
-    display: block;
-    font-size: 10px;
-    font-weight: 550;
-  }
-  & .demo-preview-info span {
-    display: block;
-    margin-top: 4px;
-    font-size: 8px;
-    color: #62715f;
-  }
-  & .demo-sheet-letters {
-    display: flex;
-    height: 22px;
-    border: 1px solid #dce6d6;
-    border-bottom: 0;
-    background: #f1f6ee;
-  }
-  & .demo-sheet-letters > span {
-    flex: 1;
-    display: grid;
-    place-items: center;
-    border-right: 1px solid #dce6d6;
-    font-size: 8px;
-    color: #5b7750;
-  }
-  & .demo-sheet-letters > span:first-child {
-    display: none;
-  }
-  & .demo-sheet-letters > span:last-child {
-    border-right: 0;
-  }
-  & .sample-sheet {
-    width: 100%;
-    table-layout: fixed;
-    border-collapse: collapse;
-  }
-  & .sample-sheet th,
-  & .sample-sheet td {
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-weight: 600;
     white-space: nowrap;
-    text-align: left;
   }
-  & .sample-sheet th {
-    height: 29px;
-    padding: 0 7px;
-    border: 1px solid #dce6d6;
-    background: #f5f8f2;
-    color: #526c48;
-    font-size: 8.5px;
-    font-weight: 550;
-  }
-  & .sample-sheet td {
-    height: 28px;
-    padding: 0 7px;
-    border: 1px solid #e5eadf;
-    font-size: 8px;
-    color: #515e4a;
-    background: #fff;
-  }
-  & .demo-preview-caption {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    margin-top: 13px !important;
-    font-size: 7px;
-    color: #5b7552;
-  }
-  & .empty-sample {
-    display: grid;
-    place-items: center;
-    min-height: 60px;
-    font-size: 9px;
-    color: #63745d;
-  }
-  & .export-result {
-    position: absolute;
-    z-index: 2;
-    bottom: 0;
-    right: -17px;
-    width: 305px;
-    overflow: hidden;
-    border: 1px solid #dbe4d5;
-    border-radius: 7px;
-    background: #fff;
-    box-shadow: 0 10px 26px #2135250e, 0 2px 4px #21352504;
-    animation: result-enter 0.65s 0.35s ease-out both;
-  }
-  & .export-result-header {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    height: 48px;
-    padding: 0 12px;
-  }
-  & .export-result-header strong {
-    display: block;
-    font-size: 9px;
-    font-weight: 550;
-    letter-spacing: -0.1px;
-  }
-  & .export-result-header div > span {
-    display: block;
-    font-size: 7px;
-    color: #63745d;
-    margin-top: 3px;
-  }
-  & .result-check {
-    display: grid;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    margin-left: auto;
+  & .run-badge-dot {
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
-    background: #edf5e9;
-    color: #527c41;
+    flex-shrink: 0;
   }
-  & .sample-sheet--compact th {
-    height: 22px;
-    border-left: 0;
-    border-top: 1px solid #e2e9dc;
-    font-size: 7px;
-    padding-inline: 12px;
+  & .run-badge--success {
+    border-color: color-mix(in srgb, var(--success) 30%, transparent);
+    background: var(--success-surface);
+    color: var(--success);
   }
-  & .sample-sheet--compact td {
-    height: 23px;
-    border-left: 0;
-    font-size: 7.5px;
-    padding-inline: 12px;
+  & .run-badge--success .run-badge-dot {
+    background: var(--success);
   }
-  & .sample-sheet--compact th:last-child,
-  & .sample-sheet--compact td:last-child {
-    border-right: 0;
+  & .run-badge--running {
+    border-color: color-mix(in srgb, var(--warning) 30%, transparent);
+    background: var(--warning-surface);
+    color: var(--warning);
   }
-  & .sample-sheet--compact tr:last-child td {
-    border-bottom: 0;
+  & .run-badge--running .run-badge-dot {
+    background: var(--warning);
+    animation: run-badge-pulse 1.6s ease-in-out infinite;
+  }
+  & .run-badge--queued {
+    border-color: color-mix(in srgb, var(--info) 30%, transparent);
+    background: var(--info-surface);
+    color: var(--info);
+  }
+  & .run-badge--queued .run-badge-dot {
+    background: var(--info);
+  }
+  & .run-badge--failed {
+    border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+    background: var(--danger-surface);
+    color: var(--danger);
+  }
+  & .run-badge--failed .run-badge-dot {
+    background: var(--danger);
+  }
+  & .run-badge--cancelled {
+    border-color: var(--border);
+    background: var(--muted);
+    color: var(--muted-foreground);
+  }
+  & .run-badge--cancelled .run-badge-dot {
+    background: var(--muted-foreground);
   }
   & .product-flow {
     display: flex;
@@ -2126,71 +1796,8 @@ html:has(.marketing-page) {
     & .supported-objects > div > span {
       font-size: 9.5px;
     }
-    & .app-body {
-      grid-template-columns: 93px minmax(0, 1fr);
-    }
-    & .app-sidebar {
-      padding-inline: 6px;
-    }
-    & .app-sidebar > span {
-      gap: 5px;
-      font-size: 7.5px;
-      padding-inline: 6px;
-    }
-    & .app-sidebar > span > svg {
-      width: 12px;
-    }
-    & .sidebar-bottom {
-      left: 8px;
-      font-size: 7px;
-    }
-    & .sidebar-bottom small {
-      font-size: 6px;
-    }
     & .app-main {
       padding-inline: 13px;
-    }
-    & .export-title-row h2 {
-      font-size: 17px;
-    }
-    & .scheduled-badge {
-      font-size: 6px;
-      padding-inline: 4px;
-    }
-    & .demo-fields {
-      gap: 7px;
-    }
-    & .demo-select {
-      padding-left: 6px;
-      gap: 4px;
-    }
-    & .demo-select > svg:first-child {
-      width: 11px;
-    }
-    & .demo-select select {
-      font-size: 7px;
-      padding-right: 17px;
-    }
-    & .demo-select > svg:last-child {
-      right: 4px;
-      width: 10px;
-    }
-    & .demo-properties label {
-      font-size: 7.5px;
-      gap: 4px;
-    }
-    & .demo-properties > div {
-      column-gap: 7px;
-    }
-    & .app-main-footer > span {
-      font-size: 6px;
-    }
-    & .app-main-footer > button {
-      font-size: 6px;
-    }
-    & .export-result {
-      width: 280px;
-      right: -12px;
     }
     & .product-flow {
       padding-inline: 10px;
@@ -2323,34 +1930,8 @@ html:has(.marketing-page) {
       max-width: 610px;
       margin-inline: auto;
     }
-    & .app-body {
-      grid-template-columns: 108px minmax(0, 1fr);
-    }
-    & .app-sidebar > span {
-      font-size: 8.5px;
-    }
     & .app-main {
       padding-inline: 17px;
-    }
-    & .export-title-row h2 {
-      font-size: 19px;
-    }
-    & .demo-select select {
-      font-size: 8px;
-    }
-    & .demo-properties label {
-      font-size: 8.5px;
-    }
-    & .scheduled-badge {
-      font-size: 7px;
-    }
-    & .app-main-footer > span,
-    & .app-main-footer > button {
-      font-size: 7px;
-    }
-    & .export-result {
-      right: -10px;
-      width: 305px;
     }
     & .product-flow {
       padding-inline: 25px;
@@ -2726,14 +2307,6 @@ html:has(.marketing-page) {
     & .preview-eyebrow {
       font-size: 7px;
     }
-    & .product-stage {
-      padding-bottom: 66px;
-    }
-    & .product-stage::before {
-      right: -8px;
-      left: 10px;
-      bottom: 75px;
-    }
     & .app-header {
       height: 43px;
       padding-inline: 12px;
@@ -2748,99 +2321,8 @@ html:has(.marketing-page) {
     & .connection-status {
       font-size: 7px;
     }
-    & .app-body {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    & .app-sidebar {
-      display: none;
-    }
     & .app-main {
       padding: 16px 15px 13px;
-    }
-    & .app-breadcrumb {
-      font-size: 8px;
-    }
-    & .export-title-row h2 {
-      font-size: 19px;
-    }
-    & .scheduled-badge {
-      font-size: 7px;
-    }
-    & .export-subtitle {
-      font-size: 9px;
-    }
-    & .app-tabs {
-      height: 32px;
-      margin-block: 13px;
-    }
-    & .app-tabs button {
-      font-size: 9px;
-    }
-    & .demo-fields {
-      gap: 9px;
-      grid-template-columns: 0.8fr 1.2fr;
-    }
-    & .demo-fields label,
-    & .demo-label,
-    & .demo-properties legend {
-      font-size: 7.5px;
-    }
-    & .demo-select {
-      height: 31px;
-    }
-    & .demo-select select {
-      font-size: 8px;
-    }
-    & .demo-properties {
-      margin-top: 14px;
-    }
-    & .demo-properties > div {
-      gap: 5px 9px;
-      margin-top: 9px;
-    }
-    & .demo-properties label {
-      height: 23px;
-      font-size: 9px;
-      gap: 5px;
-    }
-    & .demo-properties input {
-      left: 12px;
-    }
-    & .demo-checkbox {
-      width: 13px;
-      height: 13px;
-    }
-    & .demo-filter > div {
-      font-size: 8px;
-      height: 28px;
-    }
-    & .app-main-footer > span {
-      font-size: 7px;
-    }
-    & .app-main-footer > button {
-      font-size: 7.5px;
-      min-height: 25px;
-    }
-    & .demo-data-panel {
-      min-height: 209px;
-    }
-    & .demo-preview-info strong {
-      font-size: 10px;
-    }
-    & .export-result {
-      width: 260px;
-      right: -8px;
-    }
-    & .export-result-header {
-      height: 46px;
-      padding-inline: 10px;
-    }
-    & .export-result-header strong {
-      font-size: 8.5px;
-    }
-    & .sample-sheet--compact th,
-    & .sample-sheet--compact td {
-      padding-inline: 9px;
     }
     & .product-flow {
       gap: 5px;
@@ -3182,14 +2664,13 @@ html:has(.marketing-page) {
     transform: translateY(0);
   }
 }
-@keyframes result-enter {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
+@keyframes run-badge-pulse {
+  0%,
+  100% {
     opacity: 1;
-    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.4;
   }
 }
 @keyframes card-enter {

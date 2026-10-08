@@ -7,10 +7,19 @@
  * A server component: it reads the session via getCurrentSession()
  * (cookies() + one DB round trip, cached per request), no client-side data
  * fetching for anything that isn't interactive.
+ *
+ * Header brand mark: the same Wordmark/LogoMark the landing page uses
+ * (components/marketing/icons.tsx), not the old public/logo.png (deleted -
+ * nothing else referenced it). Rendered with `mono`: LogoMark's default
+ * badge hardcodes the reference's terracotta arrow (#F27550) against a
+ * dark square, and this app's palette has no orange anywhere in it
+ * (--destructive/--danger are red, --warning is amber) - a plain
+ * currentColor outline avoids introducing a hue from a different brand
+ * instead of forcing the indigo dashboard to carry one.
  */
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import Image from "next/image"
+import { Wordmark } from "@/components/marketing/icons"
 import { getCurrentSession } from "@/lib/currentPortal"
 import { describeSubscriptionForBanner } from "@/lib/plan"
 import { LogoutButton } from "@/components/logout-button"
@@ -40,7 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm supports-backdrop-filter:bg-background/80">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-6">
-            <Image src="/logo.png" alt="CleanExporter" width={67} height={24} priority />
+            <Wordmark compact mono />
             <nav className="flex items-center gap-1 text-status">
               <Link
                 href="/dashboard"

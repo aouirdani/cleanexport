@@ -85,7 +85,38 @@ export const LOGO_MARK_PATHS = {
   detail: "M12 21h4",
 } as const
 
-export function LogoMark({ size = 32, className, detail = true }: { size?: number; className?: string; detail?: boolean }) {
+/**
+ * mono drops the filled brand badge (dark square + white document + the
+ * reference's terracotta #F27550 arrow) for a plain currentColor outline,
+ * for use anywhere that accent would clash with a different palette - the
+ * dashboard's indigo has no orange anywhere in it (--destructive/--danger
+ * are red, --warning is amber), so dropping the badge there rather than
+ * reintroducing an unrelated hue. This is also why it's a pure outline
+ * with no filled backdrop of its own: a filled arrow in the same
+ * currentColor as a filled background would vanish wherever the two
+ * overlap (the arrowhead crosses past the document's right edge onto the
+ * background in the original artwork) - strokes on the page's own
+ * background don't have that problem, and it reads as a normal line icon
+ * next to body text, which is the point of a monochrome variant.
+ */
+export function LogoMark({
+  size = 32,
+  className,
+  detail = true,
+  mono = false,
+}: {
+  size?: number
+  className?: string
+  detail?: boolean
+  mono?: boolean
+}) {
+  if (mono) {
+    return <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" className={className}>
+      <path d={LOGO_MARK_PATHS.document} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d={LOGO_MARK_PATHS.fold} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d={LOGO_MARK_PATHS.arrow} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  }
   return <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" className={className}>
     <rect x="1" y="1" width="30" height="30" rx="7" fill="currentColor" />
     <path d={LOGO_MARK_PATHS.document} fill="#FAFAF9" />
@@ -95,8 +126,8 @@ export function LogoMark({ size = 32, className, detail = true }: { size?: numbe
   </svg>
 }
 
-export function Wordmark({ compact = false }: { compact?: boolean }) {
-  return <span className={`wordmark${compact ? " wordmark--compact" : ""}`}><LogoMark size={compact ? 24 : 32} /><span>CleanExporter</span></span>
+export function Wordmark({ compact = false, mono = false }: { compact?: boolean; mono?: boolean }) {
+  return <span className={`wordmark${compact ? " wordmark--compact" : ""}`}><LogoMark size={compact ? 24 : 32} mono={mono} /><span>CleanExporter</span></span>
 }
 
 export function HubSpotMark({ size = 23 }: { size?: number }) {
