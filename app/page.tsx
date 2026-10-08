@@ -15,7 +15,7 @@
  * Section order, matching the reference's own app/page.tsx exactly:
  *   Navbar -> Hero (+ProductPreview) -> TrustStrip -> ProblemSection ->
  *   Workflow -> DataComparison -> FeatureGrid -> UseCases -> HonestLimits
- *   -> Pricing -> FAQ -> FinalCTA -> Footer
+ *   -> Pricing -> FAQ -> Resources -> FinalCTA -> Footer
  * HonestLimits (ours, no reference equivalent) sits where the reference's
  * `Comparison` component would have been - that component was dropped
  * (see features-usecases.tsx) for lack of verified content, and
@@ -34,6 +34,11 @@ import { FeatureGrid, UseCases } from "@/components/marketing/features-usecases"
 import { HonestLimits } from "@/components/marketing/honest-limits"
 import { Pricing, FAQ } from "@/components/marketing/pricing-faq"
 import { FinalCTA, Footer } from "@/components/marketing/footer"
+import { SeoResources } from "@/components/marketing/seo-resources"
+import { MarketingStructuredData } from "@/components/marketing/structured-data"
+import { createPublicMetadata, publicSeoPages } from "@/lib/seo"
+
+export const metadata = createPublicMetadata(publicSeoPages[0])
 
 export const dynamic = "force-dynamic"
 
@@ -43,6 +48,7 @@ export default async function LandingPage() {
 
   return (
     <div id="top" className="marketing-page flex flex-1 flex-col">
+      <MarketingStructuredData />
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
@@ -58,6 +64,7 @@ export default async function LandingPage() {
         <HonestLimits />
         <Pricing signedIn={signedIn} />
         <FAQ />
+        <SeoResources />
         <FinalCTA signedIn={signedIn} />
       </main>
       <Footer />

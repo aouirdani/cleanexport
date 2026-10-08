@@ -1,0 +1,112 @@
+.resourceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.resourceCard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.resourceCard h3 {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.resourceCard p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.resourceAction {
+  margin-top: auto;
+  color: var(--accent-strong);
+  font-size: 14px;
+}
+
+.resourceCard:hover .resourceAction {
+  text-decoration: underline;
+}
+
+.article {
+  width: min(calc(100% - 48px), 800px);
+  margin-inline: auto;
+  padding-block: 64px 80px;
+}
+
+.article h1 {
+  margin-block: 20px;
+  font-size: clamp(34px, 5vw, 52px);
+  font-weight: 650;
+  letter-spacing: -1.5px;
+  line-height: 1.12;
+}
+
+.article section {
+  margin-top: 36px;
+}
+
+.article h2 {
+  margin-bottom: 14px;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+}
+
+.article :is(p, li) {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.article p + p {
+  margin-top: 16px;
+}
+
+.article :is(ul, ol) {
+  padding-left: 24px;
+  list-style: revert;
+}
+
+.article li + li {
+  margin-top: 10px;
+}
+
+:global(.marketing-page) .article a {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.breadcrumbs {
+  font-size: 14px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+@media (max-width: 760px) {
+  .resourceGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .headerActions > a:first-child {
+    display: none;
+  }
+
+  .headerActions {
+    gap: 12px;
+  }
+}

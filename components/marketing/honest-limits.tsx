@@ -17,8 +17,8 @@ export function HonestLimits() {
       <div className="container">
         <div className="section-heading">
           <span className="eyebrow">Honest limits</span>
-          <h2>Say these out loud.</h2>
-          <p>They cost you nothing and they buy trust.</p>
+          <h2>What to know before you connect</h2>
+          <p>CleanExporter focuses on Excel exports from a single HubSpot portal.</p>
         </div>
         <ul className="limits-list">
           {HONEST_LIMITS.map((limit) => (

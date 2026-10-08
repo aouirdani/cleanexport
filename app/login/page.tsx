@@ -9,7 +9,14 @@
  * state, so there's nothing here that needs a DB round trip or a client
  * component - a plain Link/anchor to the OAuth start route is enough.
  */
+import type { Metadata } from "next"
 import { Button } from "@/components/ui/button"
+
+export const metadata: Metadata = {
+  title: "Connect HubSpot | CleanExporter",
+  description: "Sign in to CleanExporter by connecting your HubSpot account.",
+  robots: { index: false, follow: true },
+}
 
 export const dynamic = "force-dynamic"
 

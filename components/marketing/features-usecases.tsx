@@ -73,7 +73,7 @@ export function FeatureGrid() {
 const PERSONAS: { icon: IconName; title: string; desc: string }[] = [
   { icon: "chart", title: "RevOps teams", desc: "A weekly deal export, ready before the Monday pipeline review - every time, without anyone pulling it from HubSpot by hand." },
   { icon: "mail", title: "Marketing ops", desc: "Contact lists with Notes and other multi-line fields intact - no rows broken apart before a campaign." },
-  { icon: "building", title: "HubSpot agencies", desc: "The same export definition, running on schedule across every client portal you manage." },
+  { icon: "building", title: "HubSpot agencies", desc: "Scheduled exports for a client's HubSpot portal, with one connected portal per CleanExporter account." },
   { icon: "wallet", title: "Finance", desc: "Deal amounts and close dates in a sortable sheet - real numbers and real dates, not text to clean up first." },
 ]
 

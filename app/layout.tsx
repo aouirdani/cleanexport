@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { seoSiteUrl } from "@/lib/seo";
 import "./globals.css";
 
 // next/font self-hosts these at build time (no runtime request to
@@ -19,6 +20,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: seoSiteUrl,
   title: "CleanExporter — your HubSpot data, in a correct Excel file",
   description:
     "Scheduled, correct Excel exports of your HubSpot CRM data. No broken CSVs, no manual cleanup, on a schedule.",
